@@ -73,7 +73,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          name: PV Dashboard ${{ env.VERSION }}
+          name: VOID PV Dashboard ${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
           make_latest: "true"
           body_path: notes.md

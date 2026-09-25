@@ -211,7 +211,7 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             UpdateSection(vm, s)
 
             Group("Über")
-            Text("PV Dashboard ${BuildConfig.VERSION_NAME}", color = c.text, style = MaterialTheme.typography.bodyLarge)
+            Text("VOID PV Dashboard ${BuildConfig.VERSION_NAME}", color = c.text, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(4.dp))
             Text(
                 "Design nach VOID Files. Schriften: Doto, Space Mono & Space Grotesk (SIL Open Font License). Wetter: Open-Meteo.com (CC BY 4.0). Referenzertrag: PVGIS © Europäische Union. " +

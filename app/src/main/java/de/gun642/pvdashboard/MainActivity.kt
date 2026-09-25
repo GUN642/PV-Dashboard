@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
 
     private fun installApk(apk: File) {
         if (!packageManager.canRequestPackageInstalls()) {
-            Toast.makeText(this, "Bitte \"Unbekannte Apps installieren\" für PV Dashboard erlauben und dann erneut aktualisieren", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Bitte \"Unbekannte Apps installieren\" für VOID PV Dashboard erlauben und dann erneut aktualisieren", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
             return
         }

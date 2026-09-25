@@ -1,4 +1,4 @@
-# PV Dashboard
+# VOID PV Dashboard
 
 Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speicher und **SENEC Wallbox** – im Design von VOID Files.
 

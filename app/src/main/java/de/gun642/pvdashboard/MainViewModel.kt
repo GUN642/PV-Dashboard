@@ -406,7 +406,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (!manual) showUpdateDialog = true
                 } else {
                     availableUpdate = null
-                    updateStatus = "PV Dashboard ist aktuell"
+                    updateStatus = "VOID PV Dashboard ist aktuell"
                 }
             }.onFailure {
                 updateStatus = "Update-Prüfung fehlgeschlagen: ${it.message ?: "keine Verbindung"}"
