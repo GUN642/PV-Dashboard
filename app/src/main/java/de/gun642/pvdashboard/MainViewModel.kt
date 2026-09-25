@@ -13,6 +13,11 @@ import de.gun642.pvdashboard.data.SettingsRepository
 import de.gun642.pvdashboard.data.Updater
 import de.gun642.pvdashboard.senec.SenecClient
 import de.gun642.pvdashboard.senec.SenecSnapshot
+import de.gun642.pvdashboard.meters.MeterCsv
+import de.gun642.pvdashboard.meters.MeterReading
+import de.gun642.pvdashboard.meters.MeterStore
+import de.gun642.pvdashboard.meters.MeterType
+import de.gun642.pvdashboard.meters.WaterTariff
 import de.gun642.pvdashboard.senec.cloud.SenecCloud
 import de.gun642.pvdashboard.senec.cloud.WallboxInfo
 import de.gun642.pvdashboard.senec.cloud.WallboxMode
@@ -44,13 +49,14 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
-enum class Tab(val label: String) { LIVE("Live"), STATS("Statistik"), WALLBOX("Wallbox"), WEATHER("Wetter") }
+enum class Tab(val label: String) { LIVE("Live"), STATS("Statistik"), WALLBOX("Wallbox"), WEATHER("Wetter"), METERS("Zähler") }
 
 enum class Screen { MAIN, SETTINGS, RAW }
 
 sealed interface UiEvent {
     data class Message(val text: String) : UiEvent
     data class Install(val apk: File) : UiEvent
+    data class Share(val file: File, val mimeType: String) : UiEvent
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -341,6 +347,73 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- Zähler (Strom & Wasser) ----------
+    private val meterStore = MeterStore(app)
+    var meterData by mutableStateOf(meterStore.load())
+        private set
+    var meterType by mutableStateOf(MeterType.POWER)
+    /** false = Monate eines Jahres, true = Jahresübersicht */
+    var meterYearly by mutableStateOf(false)
+    var meterYear by mutableStateOf(java.time.LocalDate.now().year)
+
+    val waterTariff: WaterTariff
+        get() = settings.value.let { WaterTariff(it.waterProvider, it.waterPricePerM3, it.wastewaterPerM3, it.waterBaseFeePerMonth) }
+
+    fun readings(type: MeterType): List<MeterReading> = meterData[type].orEmpty()
+
+    private fun updateReadings(type: MeterType, readings: List<MeterReading>) {
+        meterData = meterData + (type to readings.sortedBy { it.date })
+        val snapshot = meterData
+        viewModelScope.launch(Dispatchers.IO) { meterStore.save(snapshot) }
+    }
+
+    fun addReading(type: MeterType, reading: MeterReading) {
+        updateReadings(type, MeterCsv.merge(readings(type), listOf(reading)))
+        message("${type.label}: Zählerstand ${MeterCsv.formatValue(reading.value)} ${type.unit} gespeichert")
+    }
+
+    fun deleteReading(type: MeterType, reading: MeterReading) {
+        updateReadings(type, readings(type) - reading)
+    }
+
+    fun importMeterCsv(type: MeterType, uri: android.net.Uri) {
+        viewModelScope.launch {
+            try {
+                val text = withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                } ?: throw java.io.IOException("Datei nicht lesbar")
+                val imported = MeterCsv.parse(text)
+                if (imported.isEmpty()) {
+                    message("Keine Zählerstände in der Datei gefunden")
+                    return@launch
+                }
+                updateReadings(type, MeterCsv.merge(readings(type), imported))
+                message("${type.label}: ${imported.size} Zählerstände importiert")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Import fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
+    fun exportMeterCsv(type: MeterType) {
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
+                    val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+                    File(dir, "Export_${type.label}_$stamp.csv").apply { writeText(MeterCsv.format(readings(type))) }
+                }
+                _events.tryEmit(UiEvent.Share(file, "text/csv"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Export fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
     // ---------- Statistik ----------
     var period by mutableStateOf(Period.today(PeriodType.DAY))
         private set
@@ -519,7 +592,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (!manual) showUpdateDialog = true
                 } else {
                     availableUpdate = null
-                    updateStatus = "VOID PV Dashboard ist aktuell"
+                    updateStatus = "VOID Home Dashboard ist aktuell"
                 }
             }.onFailure {
                 updateStatus = "Update-Prüfung fehlgeschlagen: ${it.message ?: "keine Verbindung"}"
@@ -531,7 +604,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         showUpdateDialog = false
         val url = release.apkUrl ?: return message("Für diese Version gibt es keine APK")
         if (downloadJob?.isActive == true) return
-        val target = File(getApplication<Application>().cacheDir, "updates/VOID-PV-Dashboard-${release.version}.apk")
+        val target = File(getApplication<Application>().cacheDir, "updates/VOID-Home-Dashboard-${release.version}.apk")
         downloadJob = viewModelScope.launch {
             downloadProgress = 0L to release.apkSize
             try {

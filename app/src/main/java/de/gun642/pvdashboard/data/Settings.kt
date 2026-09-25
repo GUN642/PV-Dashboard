@@ -75,6 +75,11 @@ data class AppSettings(
     val dotHeadings: Boolean = true,
     val dotGrid: Boolean = true,
     val autoUpdateCheck: Boolean = true,
+    // Wassertarif
+    val waterProvider: String = "",
+    val waterPricePerM3: Double = 0.0,
+    val wastewaterPerM3: Double = 0.0,
+    val waterBaseFeePerMonth: Double = 0.0,
     // Widget
     val widgetDark: Boolean = true,
     /** Deckkraft des Widget-Hintergrunds in % (0 = durchsichtig, 100 = deckend). */
@@ -144,6 +149,10 @@ class SettingsRepository(context: Context) {
             dotHeadings = prefs.getBoolean("dot_headings", d.dotHeadings),
             dotGrid = prefs.getBoolean("dot_grid", d.dotGrid),
             autoUpdateCheck = prefs.getBoolean("auto_update", d.autoUpdateCheck),
+            waterProvider = prefs.getString("water_provider", d.waterProvider) ?: d.waterProvider,
+            waterPricePerM3 = double("water_price") ?: d.waterPricePerM3,
+            wastewaterPerM3 = double("wastewater_price") ?: d.wastewaterPerM3,
+            waterBaseFeePerMonth = double("water_base_fee") ?: d.waterBaseFeePerMonth,
             widgetDark = prefs.getBoolean("widget_dark", d.widgetDark),
             widgetOpacity = prefs.getInt("widget_opacity", d.widgetOpacity),
         )
@@ -179,6 +188,10 @@ class SettingsRepository(context: Context) {
         e.putBoolean("dot_headings", s.dotHeadings)
         e.putBoolean("dot_grid", s.dotGrid)
         e.putBoolean("auto_update", s.autoUpdateCheck)
+        e.putString("water_provider", s.waterProvider)
+        putDouble("water_price", s.waterPricePerM3)
+        putDouble("wastewater_price", s.wastewaterPerM3)
+        putDouble("water_base_fee", s.waterBaseFeePerMonth)
         e.putBoolean("widget_dark", s.widgetDark)
         e.putInt("widget_opacity", s.widgetOpacity.coerceIn(0, 100))
         e.apply()

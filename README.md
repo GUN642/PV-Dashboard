@@ -1,10 +1,10 @@
-# VOID PV Dashboard
+# VOID Home Dashboard
 
 Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speicher und **SENEC Wallbox** – im Design von VOID Files.
 
 ## Installation
 
-1. Auf dem Handy **[Releases → Latest](https://github.com/GUN642/PV-Dashboard/releases/latest)** öffnen und `VOID-PV-Dashboard-<Version>.apk` herunterladen.
+1. Auf dem Handy **[Releases → Latest](https://github.com/GUN642/PV-Dashboard/releases/latest)** öffnen und `VOID-Home-Dashboard-<Version>.apk` herunterladen.
 2. Datei öffnen und installieren (beim ersten Mal „Apps aus dieser Quelle installieren“ erlauben).
 3. Spätere Updates direkt in der App: **Einstellungen → Updates**.
 
@@ -17,6 +17,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 - **Wetter**: Sonnenstunden-Prognose für 7 Tage (Open-Meteo) und geschätzter PV-Ertrag nach Anlagenleistung, Neigung, Azimut und Systemverlusten
 - **PVGIS-Referenz**: langjähriger Soll-Ertrag der EU (PVGIS) je Monat – automatisch geladen oder aus dem PVGIS-Bericht eingetragen; die Statistik zeigt Ist gegen Soll
 - **Wallbox**: Lademodus (Schnell, Solar, Gesperrt), Speicher lädt mit, Ladeunterbrechungen verhindern, Mindestladestrom – über die SENEC-Cloud, mit Rückmeldung des tatsächlichen Zustands
+- **Zähler**: Strom- und Wasserzählerstände eintragen, Verbrauch je Monat (mit Vorjahresvergleich) und Jahr, Hochrechnung und Kosten nach Tarif; CSV-Import und -Export im Format der bisherigen Zähler-App
 - **Widget**: PV-Erzeugung und Autarkie groß, Aufteilung der PV-Erzeugung (Haus, Akku, Wallbox, Einspeisung), Netzbezug, Akku-Ladestand als farbige Punkte-Leiste; schwarz oder weiß mit einstellbarer Deckkraft; Aktualisierung per Tipp auf ⟳ (kein Hintergrund-Timer), Tipp auf die Werte öffnet die App
 - **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
 
@@ -27,6 +28,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 | Speicher im Heimnetz | IP-Adresse des SENEC.Home für schnelle Live-Werte zu Hause |
 | SENEC-Konto | E-Mail und Passwort von mein-senec.de für unterwegs und für Statistiken. Das Passwort wird mit dem Android-Keystore verschlüsselt und nur auf dem Gerät gespeichert. |
 | Stromtarif | Anbieter, Arbeitspreis, Grundgebühr, Einspeisevergütung |
+| Wassertarif | Versorger, Frischwasser- und Abwasserpreis je m³, Grundgebühr |
 | Standort & Anlage | Ort für das Wetter, kWp, Dachneigung, Azimut (180 = Süd, wie PVGIS) und Systemverluste für die Ertragsschätzung |
 | PVGIS-Referenz | Soll-Werte je Monat für den Ist/Soll-Vergleich |
 

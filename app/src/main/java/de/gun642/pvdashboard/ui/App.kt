@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.gun642.pvdashboard.MainViewModel
 import de.gun642.pvdashboard.Screen
@@ -46,7 +47,7 @@ import de.gun642.pvdashboard.ui.theme.VoidTheme
 import kotlinx.coroutines.launch
 
 @Composable
-fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit) {
+fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit, onShare: (java.io.File, String) -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     PvTheme(settings.theme, settings.accent, settings.dotHeadings, settings.dotGrid) {
         val c = VoidTheme.colors
@@ -61,6 +62,7 @@ fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit) {
                         launch { snackbar.showSnackbar(e.text) }
                     }
                     is UiEvent.Install -> onInstall(e.apk)
+                    is UiEvent.Share -> onShare(e.file, e.mimeType)
                 }
             }
         }
@@ -83,6 +85,7 @@ fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit) {
                                 Tab.STATS -> StatsScreen(vm, settings, openSettings)
                                 Tab.WALLBOX -> WallboxScreen(vm, settings, openSettings)
                                 Tab.WEATHER -> WeatherScreen(vm, settings, openSettings)
+                                Tab.METERS -> MetersScreen(vm, settings, openSettings)
                             }
                         }
                     }
@@ -133,8 +136,14 @@ private fun TabBar(current: Tab, onSelect: (Tab) -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Text(
                         tab.label.uppercase(),
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal),
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 11.sp,
+                            letterSpacing = 0.3.sp,
+                        ),
                         color = if (selected) c.text else c.textMuted,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }

@@ -122,6 +122,20 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             NumberField(s.feedInCent, { v -> vm.updateSettings { copy(feedInCent = v) } }, "Einspeisevergütung", "ct/kWh")
 
+            // ---------- Wassertarif ----------
+            Group("Wassertarif")
+            var waterProvider by rememberSaveable { mutableStateOf(s.waterProvider) }
+            VoidTextField(waterProvider, { waterProvider = it; vm.updateSettings { copy(waterProvider = it) } }, "Wasserversorger", placeholder = "z. B. Gemeindewerke")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                NumberField(s.waterPricePerM3, { v -> vm.updateSettings { copy(waterPricePerM3 = v) } }, "Frischwasser", "€/m³", Modifier.weight(1f))
+                NumberField(s.wastewaterPerM3, { v -> vm.updateSettings { copy(wastewaterPerM3 = v) } }, "Abwasser", "€/m³", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            NumberField(s.waterBaseFeePerMonth, { v -> vm.updateSettings { copy(waterBaseFeePerMonth = v) } }, "Grundgebühr", "€/Monat")
+            Spacer(Modifier.height(6.dp))
+            Hint("Abwasser wird meist nach der Frischwassermenge berechnet. Ohne getrennte Abwassergebühr einfach 0 eintragen.")
+
             // ---------- Standort & Anlage ----------
             Group("Standort & Anlage")
             if (s.locationName.isNotBlank()) {
@@ -210,7 +224,7 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
 
             // ---------- Widget ----------
             Group("Widget")
-            Hint("Widget auf dem Startbildschirm hinzufügen: lange auf eine freie Stelle tippen → Widgets → VOID PV Dashboard. Aktualisiert wird per Tipp auf ⟳ – kein Hintergrund-Timer, schont den Akku.")
+            Hint("Widget auf dem Startbildschirm hinzufügen: lange auf eine freie Stelle tippen → Widgets → VOID Home Dashboard. Aktualisiert wird per Tipp auf ⟳ – kein Hintergrund-Timer, schont den Akku.")
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill("Schwarz", s.widgetDark, { vm.updateSettings { copy(widgetDark = true) } })
@@ -242,7 +256,7 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             UpdateSection(vm, s)
 
             Group("Über")
-            Text("VOID PV Dashboard ${BuildConfig.VERSION_NAME}", color = c.text, style = MaterialTheme.typography.bodyLarge)
+            Text("VOID Home Dashboard ${BuildConfig.VERSION_NAME}", color = c.text, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(4.dp))
             Text(
                 "Design nach VOID Files. Schriften: Doto, Space Mono & Space Grotesk (SIL Open Font License). Wetter: Open-Meteo.com (CC BY 4.0). Referenzertrag: PVGIS © Europäische Union. " +

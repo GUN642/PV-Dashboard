@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { App(viewModel, ::installApk) }
+        setContent { App(viewModel, ::installApk, ::shareFile) }
     }
 
     override fun onResume() {
@@ -32,9 +32,19 @@ class MainActivity : ComponentActivity() {
         viewModel.stop()
     }
 
+    private fun shareFile(file: File, mimeType: String) {
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+        val send = Intent(Intent.ACTION_SEND)
+            .setType(mimeType)
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .putExtra(Intent.EXTRA_SUBJECT, file.name)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        startActivity(Intent.createChooser(send, file.name))
+    }
+
     private fun installApk(apk: File) {
         if (!packageManager.canRequestPackageInstalls()) {
-            Toast.makeText(this, "Bitte \"Unbekannte Apps installieren\" für VOID PV Dashboard erlauben und dann erneut aktualisieren", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Bitte \"Unbekannte Apps installieren\" für VOID Home Dashboard erlauben und dann erneut aktualisieren", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
             return
         }
