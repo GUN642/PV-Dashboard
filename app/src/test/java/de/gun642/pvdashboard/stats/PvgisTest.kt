@@ -15,7 +15,9 @@ class PvgisTest {
     fun parsesManualInputFromReport() {
         val parsed = PvgisReference.parseMonthly("360,5 577,6 970,8 1166,7 1235,6 1347,7 1354,0 1228,6 1012,1 639,9 370,3 312,1")
         assertEquals(monthly, parsed)
-        assertEquals(10576.0, ref.yearly, 0.1)
+        // Summe der gerundeten Monatswerte; der Bericht nennt gerundet 10576 kWh/Jahr
+        assertEquals(10575.9, ref.yearly, 1e-6)
+        assertEquals(10576.0, ref.yearly, 0.5)
         assertNull(PvgisReference.parseMonthly("1 2 3"))
         assertNull(PvgisReference.parseMonthly("a b c d e f g h i j k l"))
     }
