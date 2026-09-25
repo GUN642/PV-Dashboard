@@ -17,7 +17,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:paddingStart="18dp"
-        android:paddingTop="10dp"
+        android:paddingTop="8dp"
         android:paddingEnd="8dp"
         android:paddingBottom="14dp">
 
@@ -69,81 +69,140 @@
             android:gravity="bottom"
             android:orientation="vertical"
             android:paddingEnd="10dp">
-            <TextView
-                android:id="@+id/widget_pv_label"
-                style="@style/WidgetLabel"
-                android:text="PV-ERZEUGUNG" />
-            <TextView
-                android:id="@+id/widget_pv"
-                android:layout_width="wrap_content"
+
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:text="–"
-                android:textColor="#FFFFFFFF"
-                android:textSize="34sp" />
+                android:orientation="horizontal">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/widget_pv_label"
+                        style="@style/WidgetLabel"
+                        android:text="PV-ERZEUGUNG" />
+                    <TextView
+                        android:id="@+id/widget_pv"
+                        style="@style/WidgetBigValue"
+                        android:text="–" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/widget_autarky_label"
+                        style="@style/WidgetLabel"
+                        android:text="AUTARKIE" />
+                    <TextView
+                        android:id="@+id/widget_autarky"
+                        style="@style/WidgetBigValue"
+                        android:text="–" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Wohin geht die PV-Erzeugung? -->
+            <ImageView
+                android:id="@+id/widget_share_bar"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="8dp"
+                android:importantForAccessibility="no"
+                android:scaleType="fitXY" />
+            <TextView
+                android:id="@+id/widget_share_text"
+                style="@style/WidgetLabel"
+                android:layout_width="match_parent"
+                android:layout_marginTop="4dp"
+                android:maxLines="2"
+                android:text="" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:orientation="horizontal">
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
-                    android:id="@+id/widget_label_1"
-                    style="@style/WidgetLabel"
-                    android:text="–" />
-                <TextView
-                    android:id="@+id/widget_value_1"
-                    style="@style/WidgetValue"
-                    android:text="–" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/widget_label_1"
+                        style="@style/WidgetLabel"
+                        android:text="–" />
+                    <TextView
+                        android:id="@+id/widget_value_1"
+                        style="@style/WidgetValue"
+                        android:text="–" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/widget_label_2"
+                        style="@style/WidgetLabel"
+                        android:text="–" />
+                    <TextView
+                        android:id="@+id/widget_value_2"
+                        style="@style/WidgetValue"
+                        android:text="–" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/widget_label_3"
+                        style="@style/WidgetLabel"
+                        android:text="–" />
+                    <TextView
+                        android:id="@+id/widget_value_3"
+                        style="@style/WidgetValue"
+                        android:text="–" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/widget_label_4"
+                        style="@style/WidgetLabel"
+                        android:text="–" />
+                    <TextView
+                        android:id="@+id/widget_value_4"
+                        style="@style/WidgetValue"
+                        android:text="–" />
+                </LinearLayout>
             </LinearLayout>
+
+            <!-- Akku: Punkte-Leiste nach Ladestand gefärbt -->
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
                 <TextView
-                    android:id="@+id/widget_label_2"
+                    android:id="@+id/widget_battery_label"
                     style="@style/WidgetLabel"
-                    android:text="–" />
-                <TextView
-                    android:id="@+id/widget_value_2"
-                    style="@style/WidgetValue"
-                    android:text="–" />
-            </LinearLayout>
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
-                    android:id="@+id/widget_label_3"
-                    style="@style/WidgetLabel"
-                    android:text="–" />
-                <TextView
-                    android:id="@+id/widget_value_3"
-                    style="@style/WidgetValue"
-                    android:text="–" />
-            </LinearLayout>
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
-                    android:id="@+id/widget_label_4"
-                    style="@style/WidgetLabel"
-                    android:text="–" />
-                <TextView
-                    android:id="@+id/widget_value_4"
-                    style="@style/WidgetValue"
-                    android:text="–" />
-            </LinearLayout>
+                    android:layout_width="78dp"
+                    android:text="AKKU –" />
+                <ImageView
+                    android:id="@+id/widget_battery_bar"
+                    android:layout_width="0dp"
+                    android:layout_height="10dp"
+                    android:layout_weight="1"
+                    android:adjustViewBounds="true"
+                    android:importantForAccessibility="no"
+                    android:scaleType="fitStart" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

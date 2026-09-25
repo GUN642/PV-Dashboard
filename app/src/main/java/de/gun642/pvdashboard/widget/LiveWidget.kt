@@ -6,7 +6,13 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.widget.RemoteViews
 import de.gun642.pvdashboard.MainActivity
 import de.gun642.pvdashboard.R
@@ -26,7 +32,6 @@ import kotlinx.coroutines.withTimeout
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.abs
 
 /** Letzte Live-Werte für das Widget (überlebt das Beenden der App). */
 data class WidgetData(
@@ -118,6 +123,79 @@ class LiveWidget : AppWidgetProvider() {
             if (ids.isNotEmpty()) render(context, manager, ids, status)
         }
 
+        private val BATTERY_BLUE = Color.parseColor("#3D7BFF")
+        private val WALLBOX_PINK = Color.parseColor("#FF4F8B")
+        private val EXPORT_GREEN = Color.parseColor("#34C759")
+        private val LOW_RED = Color.parseColor("#FF453A")
+        private val MID_YELLOW = Color.parseColor("#FFC400")
+
+        private fun shareParts(s: PvShares, houseColor: Int) = listOf(
+            Triple("Haus", s.house, houseColor),
+            Triple("Akku", s.battery, BATTERY_BLUE),
+            Triple("Wallbox", s.wallbox, WALLBOX_PINK),
+            Triple("Netz", s.export, EXPORT_GREEN),
+        )
+
+        /** Gestapelter Balken der PV-Aufteilung. */
+        private fun shareBar(shares: PvShares?, houseColor: Int, muted: Int): Bitmap {
+            val w = 600
+            val h = 16
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            if (shares == null) {
+                paint.color = muted
+                paint.alpha = 70
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                return bmp
+            }
+            var x = 0f
+            val gap = 4f
+            shareParts(shares, houseColor).filter { it.second > 0.005 }.forEach { (_, share, color) ->
+                val width = (share * w).toFloat()
+                paint.color = color
+                canvas.drawRect(x, 0f, (x + width - gap).coerceAtLeast(x + 1f), h.toFloat(), paint)
+                x += width
+            }
+            return bmp
+        }
+
+        /** "● Haus 45 %  ● Akku 20 % …" mit farbigen Punkten. */
+        private fun shareText(shares: PvShares?, houseColor: Int): CharSequence {
+            if (shares == null) return "KEINE PV-ERZEUGUNG"
+            val sb = SpannableStringBuilder()
+            shareParts(shares, houseColor).filter { it.second > 0.005 }.forEach { (label, share, color) ->
+                if (sb.isNotEmpty()) sb.append("  ")
+                val dotStart = sb.length
+                sb.append("●")
+                sb.setSpan(ForegroundColorSpan(color), dotStart, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.append(" ").append(label.uppercase(Locale.GERMANY)).append(" ").append(formatPercent(share))
+            }
+            return sb
+        }
+
+        /** Punkte-Leiste für den Akku: rot unter 10 %, grün über 90 %, sonst gelb. */
+        private fun batteryBar(soc: Double?, muted: Int): Bitmap {
+            val dots = 20
+            val step = 24
+            val bmp = Bitmap.createBitmap(dots * step, step, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val color = when {
+                soc == null -> muted
+                soc < 10 -> LOW_RED
+                soc > 90 -> EXPORT_GREEN
+                else -> MID_YELLOW
+            }
+            val filled = soc?.let { ((it / 100) * dots + 0.5).toInt().coerceIn(0, dots) } ?: 0
+            for (i in 0 until dots) {
+                paint.color = if (i < filled) color else muted
+                paint.alpha = if (i < filled) 255 else 80
+                canvas.drawCircle(i * step + step / 2f, step / 2f, step * 0.32f, paint)
+            }
+            return bmp
+        }
+
         private fun refreshIntent(context: Context) =
             Intent(context, LiveWidget::class.java).setAction(ACTION_REFRESH)
 
@@ -164,31 +242,44 @@ class LiveWidget : AppWidgetProvider() {
             v.setInt(R.id.widget_bg, "setImageAlpha", (s.widgetOpacity.coerceIn(0, 100) * 255) / 100)
             v.setInt(R.id.widget_refresh, "setColorFilter", text)
 
-            listOf(R.id.widget_title, R.id.widget_time, R.id.widget_pv_label, R.id.widget_label_1, R.id.widget_label_2, R.id.widget_label_3, R.id.widget_label_4)
-                .forEach { v.setTextColor(it, muted) }
-            listOf(R.id.widget_pv, R.id.widget_value_1, R.id.widget_value_2, R.id.widget_value_3, R.id.widget_value_4)
+            listOf(
+                R.id.widget_title, R.id.widget_time, R.id.widget_pv_label, R.id.widget_autarky_label, R.id.widget_battery_label, R.id.widget_share_text,
+                R.id.widget_label_1, R.id.widget_label_2, R.id.widget_label_3, R.id.widget_label_4,
+            ).forEach { v.setTextColor(it, muted) }
+            listOf(R.id.widget_pv, R.id.widget_autarky, R.id.widget_value_1, R.id.widget_value_2, R.id.widget_value_3, R.id.widget_value_4)
                 .forEach { v.setTextColor(it, text) }
 
-            // Werte
+            // Große Werte: PV-Erzeugung und Autarkie
             val grid = d?.gridW
             val battery = d?.batteryW
             v.setTextViewText(R.id.widget_pv, formatPower(d?.pvW))
+            v.setTextViewText(R.id.widget_autarky, formatPercent(PvShares.autarky(d?.houseW, grid)))
+
+            // Aufteilung der PV-Erzeugung
+            val shares = PvShares.compute(d?.pvW, grid, battery, d?.wallboxW)
+            v.setImageViewBitmap(R.id.widget_share_bar, shareBar(shares, text, muted))
+            v.setTextViewText(R.id.widget_share_text, shareText(shares, text))
+
+            // Einzelwerte
             v.setTextViewText(R.id.widget_label_1, "HAUS")
             v.setTextViewText(R.id.widget_value_1, formatPower(d?.houseW))
-            v.setTextViewText(R.id.widget_label_2, if (grid != null && grid < 0) "EINSPEIS." else "NETZ")
-            v.setTextViewText(R.id.widget_value_2, formatPower(grid?.let { abs(it) }))
-            v.setTextViewText(
-                R.id.widget_label_3,
-                when {
-                    battery == null -> "AKKU"
-                    battery > 5 -> "AKKU ↑"
-                    battery < -5 -> "AKKU ↓"
-                    else -> "AKKU"
-                },
-            )
-            v.setTextViewText(R.id.widget_value_3, formatPercent(d?.batterySoc?.let { it / 100 }))
+            v.setTextViewText(R.id.widget_label_2, "NETZBEZUG")
+            v.setTextViewText(R.id.widget_value_2, formatPower(grid?.coerceAtLeast(0.0)))
+            v.setTextViewText(R.id.widget_label_3, "EINSPEIS.")
+            v.setTextViewText(R.id.widget_value_3, formatPower(grid?.let { (-it).coerceAtLeast(0.0) }))
             v.setTextViewText(R.id.widget_label_4, "WALLBOX")
             v.setTextViewText(R.id.widget_value_4, formatPower(d?.wallboxW))
+
+            // Akku: Ladestand als Punkte-Leiste (rot < 10 %, gelb, grün > 90 %)
+            val soc = d?.batterySoc
+            val arrow = when {
+                battery == null -> ""
+                battery > 5 -> " ↑"
+                battery < -5 -> " ↓"
+                else -> ""
+            }
+            v.setTextViewText(R.id.widget_battery_label, "AKKU " + formatPercent(soc?.let { it / 100 }) + arrow)
+            v.setImageViewBitmap(R.id.widget_battery_bar, batteryBar(soc, muted))
 
             val time = d?.let { SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date(it.timestamp)) + if (it.cloud) " · CLOUD" else "" }
             v.setTextViewText(R.id.widget_time, status?.uppercase(Locale.GERMANY) ?: time ?: "TIPP AUF ⟳")

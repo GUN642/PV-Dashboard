@@ -17,7 +17,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 - **Wetter**: Sonnenstunden-Prognose für 7 Tage (Open-Meteo) und geschätzter PV-Ertrag nach Anlagenleistung, Neigung, Azimut und Systemverlusten
 - **PVGIS-Referenz**: langjähriger Soll-Ertrag der EU (PVGIS) je Monat – automatisch geladen oder aus dem PVGIS-Bericht eingetragen; die Statistik zeigt Ist gegen Soll
 - **Wallbox**: Lademodus (Schnell, Solar, Gesperrt), Speicher lädt mit, Ladeunterbrechungen verhindern, Mindestladestrom – über die SENEC-Cloud, mit Rückmeldung des tatsächlichen Zustands
-- **Widget**: Live-Werte auf dem Startbildschirm, schwarz oder weiß mit einstellbarer Deckkraft; Aktualisierung per Tipp auf ⟳ (kein Hintergrund-Timer), Tipp auf die Werte öffnet die App
+- **Widget**: PV-Erzeugung und Autarkie groß, Aufteilung der PV-Erzeugung (Haus, Akku, Wallbox, Einspeisung), Netzbezug, Akku-Ladestand als farbige Punkte-Leiste; schwarz oder weiß mit einstellbarer Deckkraft; Aktualisierung per Tipp auf ⟳ (kein Hintergrund-Timer), Tipp auf die Werte öffnet die App
 - **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
 
 ## Einrichtung in der App
