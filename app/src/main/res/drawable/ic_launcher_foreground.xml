@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonne über einem Solarmodul (innerhalb der 66dp-Schutzzone) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFC107"
+        android:pathData="M54,38m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0" />
+    <path
+        android:strokeColor="#FFFFC107"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,24L54,27M54,49L54,52M40,38L43,38M65,38L68,38M44.1,28.1L46.2,30.2M63.9,28.1L61.8,30.2M44.1,47.9L46.2,45.8M63.9,47.9L61.8,45.8" />
+    <path
+        android:fillColor="#FF4FC3F7"
+        android:pathData="M38,56L70,56L77,80L31,80Z" />
+    <path
+        android:strokeColor="#FF1E3A5F"
+        android:strokeWidth="1.5"
+        android:pathData="M35.7,64L72.3,64M33.3,72L74.7,72M48.7,56L46.3,80M59.3,56L61.7,80" />
+</vector>
