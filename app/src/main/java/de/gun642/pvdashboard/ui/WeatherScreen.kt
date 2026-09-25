@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import de.gun642.pvdashboard.MainViewModel
 import de.gun642.pvdashboard.data.AppSettings
+import de.gun642.pvdashboard.stats.PvgisReference
 import de.gun642.pvdashboard.weather.DayForecast
 import de.gun642.pvdashboard.weather.Forecast
 import de.gun642.pvdashboard.weather.OpenMeteo
@@ -60,7 +61,7 @@ fun WeatherScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Un
                 }
             }
             vm.forecast?.let { f ->
-                TodayTile(f, settings.peakPowerKwp > 0)
+                TodayTile(f, settings.peakPowerKwp > 0, vm.pvgis)
                 Label("7 Tage")
                 f.days.forEach { DayRow(it) }
                 if (settings.peakPowerKwp <= 0) {
@@ -79,7 +80,7 @@ fun WeatherScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Un
 }
 
 @Composable
-private fun TodayTile(f: Forecast, showPv: Boolean) {
+private fun TodayTile(f: Forecast, showPv: Boolean, pvgis: PvgisReference?) {
     val c = VoidTheme.colors
     val today = f.days.firstOrNull { it.date == LocalDate.now() } ?: f.days.firstOrNull() ?: return
     Tile(Modifier.fillMaxWidth()) {
@@ -89,7 +90,7 @@ private fun TodayTile(f: Forecast, showPv: Boolean) {
             Label("Sonnenstunden heute", Modifier.weight(1f))
             Label(OpenMeteo.describe(today.weatherCode))
         }
-        BigValue(String.format(Locale.GERMANY, "%.1f", today.sunshineHours), "h", size = 72)
+        BigValue(String.format(Locale.GERMANY, "%.1f", today.sunshineHours), "h", size = 60)
         Label(
             buildString {
                 append("von ").append(formatHours(today.daylightHours)).append(" Tageslicht")
@@ -101,6 +102,10 @@ private fun TodayTile(f: Forecast, showPv: Boolean) {
             Spacer(Modifier.height(12.dp))
             Label("Erwarteter PV-Ertrag")
             BigValue(String.format(Locale.GERMANY, "%.1f", today.pvKwh), "kWh", color = EnergyColors.pv, size = 40)
+            pvgis?.let {
+                val avg = it.dailyAverage(today.date)
+                Label(String.format(Locale.GERMANY, "PVGIS-Mittel: %.1f kWh/Tag · %.0f %%", avg, today.pvKwh / avg * 100))
+            }
         }
         // Stündliche Sonnenscheindauer von 5 bis 21 Uhr
         val hours = f.hours.filter { it.time.toLocalDate() == today.date && it.time.hour in 5..21 }

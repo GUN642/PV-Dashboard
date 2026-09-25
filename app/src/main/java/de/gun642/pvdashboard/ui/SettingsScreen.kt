@@ -43,7 +43,7 @@ import de.gun642.pvdashboard.MainViewModel
 import de.gun642.pvdashboard.data.Accent
 import de.gun642.pvdashboard.data.AppSettings
 import de.gun642.pvdashboard.data.DataSource
-import de.gun642.pvdashboard.data.Orientation
+import de.gun642.pvdashboard.stats.PvgisReference
 import de.gun642.pvdashboard.data.ThemeMode
 import de.gun642.pvdashboard.data.Updater
 import de.gun642.pvdashboard.ui.theme.VoidTheme
@@ -148,11 +148,37 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
                 NumberField(s.peakPowerKwp, { v -> vm.updateSettings { copy(peakPowerKwp = v) } }, "Anlagenleistung", "kWp", Modifier.weight(1f))
                 NumberField(s.tiltDegrees.toDouble(), { v -> vm.updateSettings { copy(tiltDegrees = v.toInt().coerceIn(0, 90)) } }, "Dachneigung", "°", Modifier.weight(1f))
             }
-            Spacer(Modifier.height(10.dp))
-            Label("Ausrichtung der Module")
             Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Orientation.entries.forEach { o -> Pill(o.label, s.orientation == o, { vm.updateSettings { copy(orientation = o) } }) }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                NumberField(s.azimuthDegrees.toDouble(), { v -> vm.updateSettings { copy(azimuthDegrees = v.toInt().coerceIn(0, 359)) } }, "Azimut", "°", Modifier.weight(1f))
+                NumberField(s.systemLossPercent, { v -> vm.updateSettings { copy(systemLossPercent = v.coerceIn(0.0, 50.0)) } }, "Systemverluste", "%", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(6.dp))
+            Hint("Azimut wie bei PVGIS: 90 = Ost, 180 = Süd, 270 = West. Systemverluste: PVGIS-Standard 14 %.")
+
+            // ---------- PVGIS ----------
+            Group("PVGIS-Referenz")
+            Hint("Langjähriger Mittelwert der EU (PVGIS) für deine Anlage. Die Statistik vergleicht damit Ist und Soll.")
+            Spacer(Modifier.height(10.dp))
+            if (s.hasPvgis) {
+                Text(s.pvgisInfo.ifBlank { "Referenz hinterlegt" }, color = c.text, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(10.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill(if (s.hasPvgis) "Neu berechnen" else "Von PVGIS laden", selected = true, onClick = { vm.fetchPvgis() })
+                if (s.hasPvgis) Pill("Entfernen", selected = false, onClick = { vm.clearPvgis() })
+                if (vm.pvgisLoading) CircularProgressIndicator(Modifier.size(20.dp), color = c.accent, strokeWidth = 2.dp)
+            }
+            Spacer(Modifier.height(12.dp))
+            // Monatswerte ansehen oder von Hand eintragen (z. B. aus dem PVGIS-PDF)
+            var monthlyText by remember(s.pvgisMonthly) { mutableStateOf(if (s.hasPvgis) PvgisReference.formatMonthly(s.pvgisMonthly) else "") }
+            VoidTextField(monthlyText, { monthlyText = it }, "Monatswerte Jan–Dez (kWh)", placeholder = "360,5 577,6 970,8 …")
+            Spacer(Modifier.height(6.dp))
+            Hint("12 Werte mit Leerzeichen getrennt, z. B. die Spalte E_m aus dem PVGIS-Bericht.")
+            val parsed = PvgisReference.parseMonthly(monthlyText)
+            if (parsed != null && parsed != s.pvgisMonthly) {
+                Spacer(Modifier.height(8.dp))
+                Pill("Werte übernehmen", selected = true, onClick = { vm.setPvgisManual(parsed) })
             }
 
             // ---------- Design ----------
@@ -188,7 +214,7 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             Text("PV Dashboard ${BuildConfig.VERSION_NAME}", color = c.text, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Design nach VOID Files. Schriften: Doto & Space Mono (SIL Open Font License). Wetter: Open-Meteo.com (CC BY 4.0). " +
+                "Design nach VOID Files. Schriften: Doto, Space Mono & Space Grotesk (SIL Open Font License). Wetter: Open-Meteo.com (CC BY 4.0). Referenzertrag: PVGIS © Europäische Union. " +
                     "SENEC-Zugriff nach dem Vorbild der Home-Assistant-Integration von marq24.",
                 color = c.textMuted, style = MaterialTheme.typography.bodyMedium,
             )

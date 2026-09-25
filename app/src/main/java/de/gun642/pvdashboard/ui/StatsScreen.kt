@@ -37,7 +37,7 @@ import de.gun642.pvdashboard.stats.StatsResult
 import de.gun642.pvdashboard.stats.Tariff
 import de.gun642.pvdashboard.ui.theme.EnergyColors
 import de.gun642.pvdashboard.ui.theme.VoidTheme
-import de.gun642.pvdashboard.ui.theme.headingStyle
+import de.gun642.pvdashboard.ui.theme.valueStyle
 import java.util.Locale
 
 @Composable
@@ -110,9 +110,27 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
             Label("PV-Erzeugung")
         }
         val kwh = formatKwh(t.pv).split(' ')
-        BigValue(kwh[0], kwh.getOrElse(1) { "kWh" }, size = 64)
+        BigValue(kwh[0], kwh.getOrElse(1) { "kWh" }, size = 56)
+        val pvgis = vm.pvgis
+        if (pvgis != null) {
+            val target = pvgis.target(r.period, r.dataStart)
+            if (target > 0) {
+                val ratio = t.pv / target
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Label(
+                        (if (r.period.type == PeriodType.DAY) "PVGIS-Tagesmittel " else "PVGIS-Soll bis jetzt ") + formatKwh(target),
+                        Modifier.weight(1f),
+                    )
+                    Label(
+                        String.format(Locale.GERMANY, "%.0f %%", ratio * 100),
+                        color = if (ratio >= 1) EnergyColors.gridExport else c.text,
+                    )
+                }
+            }
+        }
         Spacer(Modifier.height(12.dp))
         BarChart(
+            targets = pvgis?.bucketTargets(r.period, r.buckets),
             labels = r.buckets.map { it.label },
             series = listOf(
                 EnergyColors.pv to r.buckets.map { it.totals.pv },
@@ -125,7 +143,10 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
             },
         )
         Spacer(Modifier.height(8.dp))
-        Legend(listOf("Erzeugung" to EnergyColors.pv, "Verbrauch" to EnergyColors.house))
+        Legend(
+            listOf("Erzeugung" to EnergyColors.pv, "Verbrauch" to EnergyColors.house) +
+                if (pvgis != null && r.period.type != PeriodType.DAY) listOf("PVGIS" to c.textMuted) else emptyList()
+        )
     }
 
     Tile(Modifier.fillMaxWidth()) {
@@ -167,7 +188,7 @@ private fun CostTile(tariff: Tariff, cost: CostSummary, r: StatsResult, onSettin
             return@Tile
         }
         val de = Locale.GERMANY
-        Text(formatEuro(cost.savings), style = headingStyle(44), color = EnergyColors.gridExport)
+        Text(formatEuro(cost.savings), style = valueStyle(40), color = EnergyColors.gridExport)
         Label("Ersparnis durch PV & Speicher")
         Spacer(Modifier.height(10.dp))
         ValueRow("Netzbezug × ${String.format(de, "%.2f", tariff.pricePerKwhCent)} ct", formatEuro(cost.gridCost))

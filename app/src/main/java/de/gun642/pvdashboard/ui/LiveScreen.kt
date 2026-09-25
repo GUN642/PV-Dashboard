@@ -103,7 +103,7 @@ private fun Hero(s: SenecSnapshot) {
             Label("PV-Erzeugung")
         }
         val (value, unit) = powerParts(s.pvW)
-        BigValue(value, unit, size = 72)
+        BigValue(value, unit, size = 60)
         s.houseW?.let { house ->
             Label("Hausverbrauch ${formatPower(house)}")
         }

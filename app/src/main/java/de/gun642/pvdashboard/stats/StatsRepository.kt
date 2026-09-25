@@ -47,6 +47,7 @@ class StatsRepository(private val cloud: SenecCloud) {
                     buckets = buckets,
                     billingMonths = period.billingMonths(dataStart),
                     rawJson = series.rawJson,
+                    dataStart = dataStart,
                 )
             } catch (e: HttpException) {
                 // Nicht jede Auflösung wird vom Server angeboten – dann die nächste probieren.
@@ -74,12 +75,14 @@ class StatsRepository(private val cloud: SenecCloud) {
             }
             raw.append("// ").append(year).append('\n').append(series.rawJson).append("\n\n")
         }
+        val start = dataStart ?: buckets.firstOrNull()?.let { LocalDate.of(it.index, 1, 1) }
         return StatsResult(
             period = period,
             totals = buckets.fold(EnergyTotals()) { acc, b -> acc + b.totals },
             buckets = buckets,
-            billingMonths = period.billingMonths(dataStart ?: buckets.firstOrNull()?.let { LocalDate.of(it.index, 1, 1) }),
+            billingMonths = period.billingMonths(start),
             rawJson = raw.toString(),
+            dataStart = start,
         )
     }
 

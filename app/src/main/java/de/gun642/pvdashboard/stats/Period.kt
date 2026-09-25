@@ -95,4 +95,6 @@ data class StatsResult(
     val buckets: List<StatsBucket>,
     val billingMonths: Double,
     val rawJson: String,
+    /** Beginn der Aufzeichnung (für Soll-Werte im Gesamtzeitraum) */
+    val dataStart: LocalDate? = null,
 )

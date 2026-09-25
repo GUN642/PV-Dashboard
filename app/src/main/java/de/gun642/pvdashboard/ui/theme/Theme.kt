@@ -62,6 +62,15 @@ val DotFont = FontFamily(
 
 val MonoFont = FontFamily(Font(R.font.space_mono, FontWeight.Normal))
 
+/** Gut lesbare, markante Schrift für Werte und Fließtext (Schwester der Space Mono). */
+@OptIn(ExperimentalTextApi::class)
+val GroteskFont = FontFamily(
+    Font(R.font.space_grotesk, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+    Font(R.font.space_grotesk, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.space_grotesk, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+    Font(R.font.space_grotesk, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+)
+
 val LocalVoidColors = staticCompositionLocalOf {
     VoidColors(
         Color.Black, Color(0xFF111111), Color(0xFF1C1C1C), Color.White, Color(0xFF8A8A8A),
@@ -167,10 +176,11 @@ fun PvTheme(
     val typography = Typography(
         displayLarge = base.displayLarge.copy(fontFamily = if (dotHeadings) DotFont else FontFamily.Default),
         headlineMedium = base.headlineMedium.copy(fontFamily = if (dotHeadings) DotFont else FontFamily.Default),
-        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.Medium),
-        titleMedium = base.titleMedium,
-        bodyLarge = base.bodyLarge,
-        bodyMedium = base.bodyMedium,
+        titleLarge = base.titleLarge.copy(fontFamily = GroteskFont, fontWeight = FontWeight.Medium),
+        titleMedium = base.titleMedium.copy(fontFamily = GroteskFont, fontWeight = FontWeight.Medium),
+        bodyLarge = base.bodyLarge.copy(fontFamily = GroteskFont),
+        bodyMedium = base.bodyMedium.copy(fontFamily = GroteskFont),
+        bodySmall = base.bodySmall.copy(fontFamily = GroteskFont),
         labelSmall = TextStyle(fontFamily = MonoFont, fontSize = 11.sp, letterSpacing = 0.6.sp),
         labelMedium = TextStyle(fontFamily = MonoFont, fontSize = 12.sp, letterSpacing = 0.8.sp),
         labelLarge = base.labelLarge.copy(fontFamily = MonoFont, letterSpacing = 1.sp),
@@ -193,10 +203,16 @@ fun headingStyle(size: Int): TextStyle = if (VoidTheme.dotHeadings) {
     TextStyle(fontWeight = FontWeight.SemiBold, fontSize = (size * 0.85f).sp, letterSpacing = 0.sp)
 }
 
-/** Feste Farben je Energiefluss – aus der Akzentpalette von VOID Files. */
+/** Große Zahlenwerte: gut lesbar in Space Grotesk mit Tabellenziffern. */
+fun valueStyle(size: Int): TextStyle =
+    TextStyle(fontFamily = GroteskFont, fontWeight = FontWeight.SemiBold, fontSize = size.sp, letterSpacing = (-0.02 * size).sp, fontFeatureSettings = "tnum")
+
+/** Farben je Energiefluss – aus der Akzentpalette von VOID Files. */
 object EnergyColors {
-    val pv = Color(0xFFFFC400)
-    val gridImport = Color(0xFFFF453A)
+    /** PV folgt der Akzentfarbe (Standard: Rot); bei „Mono“ Gelb, damit sie sich vom Verbrauch abhebt. */
+    val pv: Color
+        @Composable get() = VoidTheme.colors.let { if (it.accent == it.text) Color(0xFFFFC400) else it.accent }
+    val gridImport = Color(0xFFFF6A13)
     val gridExport = Color(0xFF34C759)
     val battery = Color(0xFF3D7BFF)
     val wallbox = Color(0xFFFF4F8B)

@@ -14,7 +14,8 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
   - im Heim-WLAN direkt vom Speicher (`lala.cgi`), unterwegs automatisch über die SENEC-Cloud
 - **Statistik**: Tag, Monat, Jahr, Gesamt – Erzeugung, Verbrauch, Netz, Speicher, Wallbox als Diagramm und Tabelle
 - **Kosten**: Stromkosten, Grundgebühr, Einspeisevergütung und Ersparnis durch PV nach eigenem Tarif
-- **Wetter**: Sonnenstunden-Prognose für 7 Tage (Open-Meteo) und geschätzter PV-Ertrag nach Anlagenleistung, Neigung und Ausrichtung
+- **Wetter**: Sonnenstunden-Prognose für 7 Tage (Open-Meteo) und geschätzter PV-Ertrag nach Anlagenleistung, Neigung, Azimut und Systemverlusten
+- **PVGIS-Referenz**: langjähriger Soll-Ertrag der EU (PVGIS) je Monat – automatisch geladen oder aus dem PVGIS-Bericht eingetragen; die Statistik zeigt Ist gegen Soll
 - **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
 
 ## Einrichtung in der App
@@ -24,7 +25,8 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 | Speicher im Heimnetz | IP-Adresse des SENEC.Home für schnelle Live-Werte zu Hause |
 | SENEC-Konto | E-Mail und Passwort von mein-senec.de für unterwegs und für Statistiken. Das Passwort wird mit dem Android-Keystore verschlüsselt und nur auf dem Gerät gespeichert. |
 | Stromtarif | Anbieter, Arbeitspreis, Grundgebühr, Einspeisevergütung |
-| Standort & Anlage | Ort für das Wetter, kWp, Dachneigung und Ausrichtung für die Ertragsschätzung |
+| Standort & Anlage | Ort für das Wetter, kWp, Dachneigung, Azimut (180 = Süd, wie PVGIS) und Systemverluste für die Ertragsschätzung |
+| PVGIS-Referenz | Soll-Werte je Monat für den Ist/Soll-Vergleich |
 
 Der Cloud-Zugriff nutzt dieselbe Schnittstelle wie die offizielle SENEC-App (nach dem Vorbild der Home-Assistant-Integration [marq24/ha-senec-v3](https://github.com/marq24/ha-senec-v3)). Sie ist nicht offiziell dokumentiert und kann sich ändern. Zwei-Faktor-Anmeldung wird noch nicht unterstützt.
 
@@ -38,4 +40,4 @@ Damit Updates über die installierte Version passen, wird immer mit demselben Sc
 
 ## Lizenzen
 
-Schriften Doto und Space Mono unter SIL Open Font License (`licenses/`). Wetterdaten von [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
+Schriften Doto, Space Mono und Space Grotesk unter SIL Open Font License (`licenses/`). Wetterdaten von [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0). Referenzerträge von [PVGIS](https://re.jrc.ec.europa.eu/pvg_tools/) © Europäische Union.

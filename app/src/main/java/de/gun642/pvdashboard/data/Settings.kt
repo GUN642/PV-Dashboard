@@ -62,7 +62,13 @@ data class AppSettings(
     val longitude: Double? = null,
     val peakPowerKwp: Double = 0.0,
     val tiltDegrees: Int = 30,
-    val orientation: Orientation = Orientation.SOUTH,
+    /** Ausrichtung als Kompasswinkel wie bei PVGIS: 90 = Ost, 180 = Süd, 270 = West. */
+    val azimuthDegrees: Int = 180,
+    /** Systemverluste in % (PVGIS-Standard 14 %). */
+    val systemLossPercent: Double = 14.0,
+    /** PVGIS-Referenz: mittlerer Ertrag je Monat (Jan–Dez) in kWh; leer = keine Referenz. */
+    val pvgisMonthly: List<Double> = emptyList(),
+    val pvgisInfo: String = "",
     // Design
     val theme: ThemeMode = ThemeMode.BLACK,
     val accent: Accent = Accent.RED,
@@ -74,6 +80,16 @@ data class AppSettings(
     val hasCloud: Boolean get() = senecEmail.isNotBlank() && senecPassword.isNotBlank()
     val hasLocation: Boolean get() = latitude != null && longitude != null
     val hasTariff: Boolean get() = pricePerKwhCent > 0
+    val hasPvgis: Boolean get() = pvgisMonthly.size == 12
+
+    /** Azimut im Format von Open-Meteo/PVGIS-API: 0 = Süd, -90 = Ost, 90 = West. */
+    val azimuthFromSouth: Int get() = azimuthDegrees - 180
+
+    /**
+     * Anteil der Einstrahlung, der als Strom ankommt: Systemverluste plus ca. 8 % für
+     * Temperatur, Einfallswinkel und schwaches Licht (entspricht grob der PVGIS-Gesamtverlustrechnung).
+     */
+    val performanceRatio: Double get() = (1 - systemLossPercent / 100).coerceIn(0.3, 1.0) * 0.92
 }
 
 class SettingsRepository(context: Context) {
@@ -113,7 +129,12 @@ class SettingsRepository(context: Context) {
             longitude = double("longitude"),
             peakPowerKwp = double("kwp") ?: d.peakPowerKwp,
             tiltDegrees = prefs.getInt("tilt", d.tiltDegrees),
-            orientation = enumOf("orientation", d.orientation),
+            azimuthDegrees = if (prefs.contains("azimuth")) prefs.getInt("azimuth", d.azimuthDegrees)
+            else enumOf("orientation", Orientation.SOUTH).azimuth + 180,
+            systemLossPercent = double("system_loss") ?: d.systemLossPercent,
+            pvgisMonthly = prefs.getString("pvgis_monthly", "").orEmpty().split(';').mapNotNull { it.toDoubleOrNull() }
+                .takeIf { it.size == 12 } ?: emptyList(),
+            pvgisInfo = prefs.getString("pvgis_info", d.pvgisInfo) ?: d.pvgisInfo,
             theme = enumOf("theme", d.theme),
             accent = enumOf("accent", d.accent),
             dotHeadings = prefs.getBoolean("dot_headings", d.dotHeadings),
@@ -143,7 +164,10 @@ class SettingsRepository(context: Context) {
         putDouble("longitude", s.longitude)
         putDouble("kwp", s.peakPowerKwp)
         e.putInt("tilt", s.tiltDegrees.coerceIn(0, 90))
-        e.putString("orientation", s.orientation.name)
+        e.putInt("azimuth", s.azimuthDegrees.coerceIn(0, 359))
+        putDouble("system_loss", s.systemLossPercent)
+        e.putString("pvgis_monthly", s.pvgisMonthly.joinToString(";"))
+        e.putString("pvgis_info", s.pvgisInfo)
         e.putString("theme", s.theme.name)
         e.putString("accent", s.accent.name)
         e.putBoolean("dot_headings", s.dotHeadings)

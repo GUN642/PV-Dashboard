@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.gun642.pvdashboard.ui.theme.VoidTheme
 import de.gun642.pvdashboard.ui.theme.headingStyle
+import de.gun642.pvdashboard.ui.theme.valueStyle
 import java.util.Locale
 
 // ---------- VOID-Grundbausteine ----------
@@ -247,9 +248,9 @@ fun NumberField(value: Double, onValue: (Double) -> Unit, label: String, suffix:
 @Composable
 fun BigValue(value: String, unit: String, color: Color = VoidTheme.colors.text, size: Int = 64) {
     Row(verticalAlignment = Alignment.Bottom) {
-        Text(value, style = headingStyle(size), color = color)
+        Text(value, style = valueStyle(size), color = color)
         Spacer(Modifier.width(8.dp))
-        Text(unit, style = MaterialTheme.typography.labelLarge, color = VoidTheme.colors.textMuted, modifier = Modifier.padding(bottom = 10.dp))
+        Text(unit, style = MaterialTheme.typography.labelLarge, color = VoidTheme.colors.textMuted, modifier = Modifier.padding(bottom = (size / 7).dp))
     }
 }
 
@@ -289,16 +290,20 @@ fun Legend(items: List<Pair<String, Color>>) {
     }
 }
 
-/** Säulendiagramm mit bis zu zwei Reihen nebeneinander je Balken. */
+/**
+ * Säulendiagramm mit bis zu zwei Reihen nebeneinander je Balken.
+ * [targets]: optionaler Soll-Wert je Balken (z. B. PVGIS), als Querstrich gezeichnet.
+ */
 @Composable
 fun BarChart(
     labels: List<String>,
     series: List<Pair<Color, List<Double>>>,
     modifier: Modifier = Modifier,
     labelEvery: Int = 1,
+    targets: List<Double>? = null,
 ) {
     val c = VoidTheme.colors
-    val max = series.flatMap { it.second }.maxOrNull()?.takeIf { it > 0 } ?: 1.0
+    val max = (series.flatMap { it.second } + targets.orEmpty()).maxOrNull()?.takeIf { it > 0 } ?: 1.0
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(160.dp)) {
             val n = labels.size.coerceAtLeast(1)
@@ -315,6 +320,12 @@ fun BarChart(
                     val x = slot * i + (slot - groupWidth) / 2 + barWidth * s
                     drawRoundRect(color, Offset(x, size.height - h), Size(barWidth * 0.85f, h), radius)
                 }
+            }
+            targets?.forEachIndexed { i, t ->
+                if (t <= 0) return@forEachIndexed
+                val y = (size.height - t / max * (size.height - 2)).toFloat()
+                val x = slot * i + (slot - groupWidth) / 2 - 2f
+                drawRoundRect(c.textMuted, Offset(x, y - 1.5f), Size(groupWidth + 4f, 3f), CornerRadius(1.5f, 1.5f))
             }
         }
         Spacer(Modifier.height(4.dp))

@@ -24,7 +24,7 @@ class OpenMeteoTest {
 
     @Test
     fun parsesForecastWithPvEstimate() {
-        val f = OpenMeteo.parse(body, kwp = 10.0)
+        val f = OpenMeteo.parse(body, kwp = 10.0, performanceRatio = 0.85)
         assertEquals(2, f.days.size)
         val day = f.days[0]
         assertEquals(LocalDate.of(2025, 6, 1), day.date)
@@ -40,7 +40,7 @@ class OpenMeteoTest {
 
     @Test
     fun noPvEstimateWithoutPeakPower() {
-        assertNull(OpenMeteo.parse(body, kwp = 0.0).days[0].pvKwh)
+        assertNull(OpenMeteo.parse(body, kwp = 0.0, performanceRatio = 0.85).days[0].pvKwh)
     }
 
     @Test

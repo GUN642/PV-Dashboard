@@ -17,6 +17,7 @@ import de.gun642.pvdashboard.senec.cloud.SenecCloud
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.stats.Period
 import de.gun642.pvdashboard.stats.PeriodType
+import de.gun642.pvdashboard.stats.PvgisReference
 import de.gun642.pvdashboard.stats.StatsRepository
 import de.gun642.pvdashboard.stats.StatsResult
 import de.gun642.pvdashboard.stats.Tariff
@@ -92,7 +93,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             skipLocalUntil = 0
         }
         if (before.latitude != after.latitude || before.longitude != after.longitude || before.peakPowerKwp != after.peakPowerKwp ||
-            before.tiltDegrees != after.tiltDegrees || before.orientation != after.orientation
+            before.tiltDegrees != after.tiltDegrees || before.azimuthDegrees != after.azimuthDegrees ||
+            before.systemLossPercent != after.systemLossPercent
         ) {
             forecast = null
         }
@@ -291,7 +293,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             weatherLoading = true
             weatherError = null
             try {
-                forecast = OpenMeteo.forecast(lat, lon, s.peakPowerKwp, s.tiltDegrees, s.orientation.azimuth)
+                forecast = OpenMeteo.forecast(lat, lon, s.peakPowerKwp, s.tiltDegrees, s.azimuthFromSouth, s.performanceRatio)
                 forecastAt = System.currentTimeMillis()
             } catch (e: CancellationException) {
                 throw e
@@ -327,6 +329,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun choosePlace(place: Place) {
         updateSettings { copy(locationName = "${place.name}, ${place.detail}".trimEnd(',', ' '), latitude = place.latitude, longitude = place.longitude) }
         placeResults = emptyList()
+    }
+
+    // ---------- PVGIS-Referenz ----------
+    val pvgis: PvgisReference?
+        get() = settings.value.pvgisMonthly.takeIf { it.size == 12 }?.let { PvgisReference(it) }
+
+    var pvgisLoading by mutableStateOf(false)
+        private set
+
+    /** Holt die Referenzwerte von PVGIS für Standort und Anlage aus den Einstellungen. */
+    fun fetchPvgis() {
+        val s = settings.value
+        val lat = s.latitude
+        val lon = s.longitude
+        if (lat == null || lon == null || s.peakPowerKwp <= 0) {
+            message("Bitte zuerst Standort und Anlagenleistung eintragen")
+            return
+        }
+        if (pvgisLoading) return
+        viewModelScope.launch {
+            pvgisLoading = true
+            try {
+                val monthly = PvgisReference.fetch(lat, lon, s.peakPowerKwp, s.systemLossPercent, s.tiltDegrees, s.azimuthFromSouth)
+                val info = String.format(
+                    java.util.Locale.GERMANY, "PVGIS · %.1f kWp · %d° · Azimut %d° · %.0f %% Verlust · %.0f kWh/Jahr",
+                    s.peakPowerKwp, s.tiltDegrees, s.azimuthDegrees, s.systemLossPercent, monthly.sum(),
+                )
+                updateSettings { copy(pvgisMonthly = monthly, pvgisInfo = info) }
+                message("PVGIS-Referenz geladen: ${String.format(java.util.Locale.GERMANY, "%.0f", monthly.sum())} kWh/Jahr")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("PVGIS nicht erreichbar: ${e.message}. Werte können auch von Hand eingetragen werden.")
+            } finally {
+                pvgisLoading = false
+            }
+        }
+    }
+
+    fun setPvgisManual(monthly: List<Double>) {
+        updateSettings { copy(pvgisMonthly = monthly, pvgisInfo = String.format(java.util.Locale.GERMANY, "Eigene Werte · %.0f kWh/Jahr", monthly.sum())) }
+    }
+
+    fun clearPvgis() {
+        updateSettings { copy(pvgisMonthly = emptyList(), pvgisInfo = "") }
     }
 
     // ---------- Updates ----------

@@ -37,9 +37,6 @@ data class Forecast(val days: List<DayForecast>, val hours: List<HourForecast>)
 object OpenMeteo {
     private val http = Http()
 
-    /** Wirkungsgrad-Faktor für die Ertragsschätzung (Wechselrichter, Temperatur, Verschattung). */
-    const val PERFORMANCE_RATIO = 0.85
-
     suspend fun search(query: String): List<Place> = withContext(Dispatchers.IO) {
         val url = "https://geocoding-api.open-meteo.com/v1/search?name=${Http.encode(query.trim())}&count=8&language=de&format=json"
         val res = http.request(url)
@@ -56,7 +53,10 @@ object OpenMeteo {
         }
     }
 
-    suspend fun forecast(latitude: Double, longitude: Double, kwp: Double, tilt: Int, azimuth: Int): Forecast =
+    /**
+     * [azimuth]: 0 = Süd, -90 = Ost, 90 = West. [performanceRatio]: Anteil der Einstrahlung, der als Strom ankommt.
+     */
+    suspend fun forecast(latitude: Double, longitude: Double, kwp: Double, tilt: Int, azimuth: Int, performanceRatio: Double): Forecast =
         withContext(Dispatchers.IO) {
             val url = String.format(
                 Locale.US,
@@ -67,10 +67,10 @@ object OpenMeteo {
             )
             val res = http.request(url)
             if (res.code != 200) throw HttpException(res.code, "Wetterdaten nicht verfügbar (HTTP ${res.code})")
-            parse(res.body, kwp)
+            parse(res.body, kwp, performanceRatio)
         }
 
-    fun parse(body: String, kwp: Double): Forecast {
+    fun parse(body: String, kwp: Double, performanceRatio: Double): Forecast {
         val json = JSONObject(body)
         val hourly = json.getJSONObject("hourly")
         val hourTimes = hourly.getJSONArray("time")
@@ -82,7 +82,7 @@ object OpenMeteo {
                 time = LocalDateTime.parse(hourTimes.getString(i)),
                 sunshineMinutes = (sunshine.optDouble(i, 0.0).takeIf { !it.isNaN() } ?: 0.0) / 60,
                 irradiance = irradiance,
-                pvKw = if (kwp > 0) estimateKw(irradiance, kwp) else null,
+                pvKw = if (kwp > 0) estimateKw(irradiance, kwp, performanceRatio) else null,
             )
         }
         val pvByDay = hours.groupBy { it.time.toLocalDate() }.mapValues { (_, list) ->
@@ -104,14 +104,14 @@ object OpenMeteo {
                 tempMax = num("temperature_2m_max"),
                 tempMin = num("temperature_2m_min"),
                 precipitationProbability = num("precipitation_probability_max")?.toInt(),
-                pvKwh = if (kwp > 0) pvByDay[date]?.let { it * kwp * PERFORMANCE_RATIO } else null,
+                pvKwh = if (kwp > 0) pvByDay[date]?.let { it * kwp * performanceRatio } else null,
             )
         }
         return Forecast(days, hours)
     }
 
-    /** Leistung bei gegebener Einstrahlung: kWp × (Einstrahlung / 1000 W/m²) × Wirkungsgrad-Faktor. */
-    fun estimateKw(irradiance: Double, kwp: Double) = kwp * irradiance / 1000 * PERFORMANCE_RATIO
+    /** Leistung bei gegebener Einstrahlung: kWp × (Einstrahlung / 1000 W/m²) × Wirkungsgrad. */
+    fun estimateKw(irradiance: Double, kwp: Double, performanceRatio: Double) = kwp * irradiance / 1000 * performanceRatio
 
     fun describe(code: Int): String = when (code) {
         0 -> "Klar"
