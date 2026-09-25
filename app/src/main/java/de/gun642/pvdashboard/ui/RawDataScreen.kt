@@ -1,75 +1,46 @@
 package de.gun642.pvdashboard.ui
 
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import de.gun642.pvdashboard.senec.SenecSnapshot
-import org.json.JSONObject
+import de.gun642.pvdashboard.ui.theme.VoidTheme
 
-/** Zeigt alle dekodierten Werte – hilfreich, um fehlende Werte zu finden. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Zeigt Rohdaten (JSON) – zum Teilen bei der Fehlersuche. */
 @Composable
-fun RawDataScreen(snapshot: SenecSnapshot?, onBack: () -> Unit) {
+fun RawDataScreen(title: String, text: String, onBack: () -> Unit) {
+    val c = VoidTheme.colors
     val context = LocalContext.current
-    val text = snapshot?.let { toPrettyJson(it.raw) } ?: "Noch keine Daten."
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Rohdaten") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        val send = Intent(Intent.ACTION_SEND)
-                            .setType("text/plain")
-                            .putExtra(Intent.EXTRA_TEXT, text)
-                        context.startActivity(Intent.createChooser(send, "Rohdaten teilen"))
-                    }) {
-                        Icon(Icons.Filled.Share, contentDescription = "Teilen")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    Column(Modifier.fillMaxSize().background(c.background)) {
+        ScreenHeader(title, onBack) {
+            IconButton(onClick = {
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+                context.startActivity(Intent.createChooser(send, "Rohdaten teilen"))
+            }) { Icon(Icons.Filled.Share, "Teilen", tint = c.text) }
+        }
         SelectionContainer(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
+            Modifier.fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .horizontalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
         ) {
-            Text(text, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            Text(text.ifBlank { "Keine Daten." }, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = c.text)
         }
     }
 }
-
-private fun toPrettyJson(raw: Map<String, Any?>): String =
-    try {
-        JSONObject(raw).toString(2)
-    } catch (e: Exception) {
-        raw.toString()
-    }

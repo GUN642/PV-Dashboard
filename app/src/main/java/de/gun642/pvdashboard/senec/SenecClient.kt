@@ -16,7 +16,7 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 /** Liest Live-Werte lokal im Heimnetz über `lala.cgi` (SENEC.Home V2.x/V3). */
-class SenecClient(host: String, useHttps: Boolean) {
+class SenecClient(host: String, useHttps: Boolean, private val connectTimeoutMs: Int = 5_000) {
 
     private val url = URL("${if (useHttps) "https" else "http"}://${normalizeHost(host)}/lala.cgi")
 
@@ -35,7 +35,7 @@ class SenecClient(host: String, useHttps: Boolean) {
                 connection.sslSocketFactory = trustAllSocketFactory
                 connection.setHostnameVerifier { _, _ -> true }
             }
-            connection.connectTimeout = 5_000
+            connection.connectTimeout = connectTimeoutMs
             connection.readTimeout = 10_000
             connection.requestMethod = "POST"
             connection.doOutput = true

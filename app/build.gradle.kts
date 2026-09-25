@@ -18,7 +18,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "0.1.$buildNumber"
+        versionName = "0.2.$buildNumber"
     }
 
     signingConfigs {
@@ -67,4 +67,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
 
     testImplementation("junit:junit:4.13.2")
+    // Echte org.json-Implementierung für Unit-Tests (Android stellt sie nur zur Laufzeit bereit)
+    testImplementation("org.json:json:20240303")
 }

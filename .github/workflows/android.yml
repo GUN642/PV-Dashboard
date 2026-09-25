@@ -2,7 +2,7 @@ name: Android APK
 
 on:
   push:
-    branches: ["**"]
+    branches: [main, "claude/**"]
   workflow_dispatch:
 
 permissions:
@@ -16,10 +16,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VERSION: 0.1.${{ github.run_number }}
-      IS_MAIN: ${{ github.ref == 'refs/heads/main' }}
+      VERSION: 0.2.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -54,19 +55,26 @@ jobs:
           name: PV-Dashboard-${{ env.VERSION }}
           path: PV-Dashboard.apk
 
-      # Jede erfolgreiche Version wird als GitHub-Release mit APK veröffentlicht.
-      # Builds von main sind "Latest", Builds anderer Branches Vorabversionen.
+      # Änderungen seit dem letzten Release aus den Commit-Nachrichten
+      - name: Release-Notizen
+        if: github.ref == 'refs/heads/main'
+        run: |
+          PREV=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          RANGE="HEAD"
+          if [ -n "$PREV" ]; then RANGE="$PREV..HEAD"; fi
+          git log --no-merges --format='%b' $RANGE \
+            | grep -v -i -e '^Co-Authored-By' -e '^Claude-Session' \
+            | sed '/^[[:space:]]*$/d' > notes.md || true
+          if [ ! -s notes.md ]; then git log -1 --format='- %s' > notes.md; fi
+          cat notes.md
+
       - name: Release veröffentlichen
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
           name: PV Dashboard ${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
-          prerelease: ${{ env.IS_MAIN != 'true' }}
-          make_latest: ${{ env.IS_MAIN }}
+          make_latest: "true"
+          body_path: notes.md
           files: PV-Dashboard.apk
-          body: |
-            **Installation:** `PV-Dashboard.apk` unten auf dem Handy herunterladen und öffnen.
-            Beim ersten Mal muss Android die Installation aus dieser Quelle (Browser/Dateien) erlauben.
-
-            Branch: `${{ github.ref_name }}` · Commit: ${{ github.sha }}

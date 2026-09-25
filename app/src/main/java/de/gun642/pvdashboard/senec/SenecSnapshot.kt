@@ -1,5 +1,7 @@
 package de.gun642.pvdashboard.senec
 
+enum class LiveSource(val label: String) { LOCAL("Heimnetz"), CLOUD("SENEC-Cloud") }
+
 /**
  * Ein Messpunkt in Watt / Prozent / °C.
  *
@@ -17,6 +19,7 @@ data class SenecSnapshot(
     val wallboxW: Double?,
     val wallboxCarConnected: Boolean?,
     val raw: Map<String, Any?>,
+    val source: LiveSource = LiveSource.LOCAL,
 ) {
     /** Anteil des Hausverbrauchs, der nicht aus dem Netz kommt (0..1). */
     val autarky: Double?

@@ -1,51 +1,41 @@
 # PV Dashboard
 
-Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** PV-Anlage mit Speicher und **SENEC Wallbox**.
+Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speicher und **SENEC Wallbox** – im Design von VOID Files.
 
 ## Installation
 
-1. Auf dem Handy die Seite **[Releases](https://github.com/GUN642/PV-Dashboard/releases)** öffnen.
-2. Bei der neuesten Version `PV-Dashboard.apk` herunterladen und öffnen.
-3. Beim ersten Mal fragt Android, ob Apps aus dieser Quelle (z. B. Chrome) installiert werden dürfen → erlauben.
-4. App öffnen, in den Einstellungen die **IP-Adresse des Speichers** eintragen (steht im Router, z. B. FRITZ!Box → Heimnetz).
+1. Auf dem Handy **[Releases → Latest](https://github.com/GUN642/PV-Dashboard/releases/latest)** öffnen und `PV-Dashboard.apk` herunterladen.
+2. Datei öffnen und installieren (beim ersten Mal „Apps aus dieser Quelle installieren“ erlauben).
+3. Spätere Updates direkt in der App: **Einstellungen → Updates**.
 
-Updates werden genauso installiert – einfach die neue APK über die alte installieren, die Einstellungen bleiben erhalten.
+## Funktionen
 
-## Was die App kann (Version 0.1)
+- **Live**: PV-Erzeugung, Hausverbrauch, Netzbezug/Einspeisung, Speicher, Ladestand, Wallbox, Autarkie, Eigenverbrauch, Tageswerte, 30-Minuten-Verlauf
+  - im Heim-WLAN direkt vom Speicher (`lala.cgi`), unterwegs automatisch über die SENEC-Cloud
+- **Statistik**: Tag, Monat, Jahr, Gesamt – Erzeugung, Verbrauch, Netz, Speicher, Wallbox als Diagramm und Tabelle
+- **Kosten**: Stromkosten, Grundgebühr, Einspeisevergütung und Ersparnis durch PV nach eigenem Tarif
+- **Wetter**: Sonnenstunden-Prognose für 7 Tage (Open-Meteo) und geschätzter PV-Ertrag nach Anlagenleistung, Neigung und Ausrichtung
+- **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
 
-- Live-Werte direkt vom Speicher im Heim-WLAN (lokale Schnittstelle `lala.cgi`, kein Cloud-Login nötig):
-  PV-Erzeugung, Hausverbrauch, Netzbezug/Einspeisung, Speicher-Leistung und Ladestand, Akku-Temperatur, Wallbox-Ladeleistung und ob ein Auto angesteckt ist
-- Autarkie und Eigenverbrauchsquote in Echtzeit
-- Verlaufsdiagramm der letzten 30 Minuten (solange die App geöffnet ist)
-- Rohdaten-Ansicht mit Teilen-Funktion zur Fehlersuche
+## Einrichtung in der App
 
-Die Werte werden nur abgefragt, solange die App im Vordergrund ist.
+| Bereich | Wofür |
+| --- | --- |
+| Speicher im Heimnetz | IP-Adresse des SENEC.Home für schnelle Live-Werte zu Hause |
+| SENEC-Konto | E-Mail und Passwort von mein-senec.de für unterwegs und für Statistiken. Das Passwort wird mit dem Android-Keystore verschlüsselt und nur auf dem Gerät gespeichert. |
+| Stromtarif | Anbieter, Arbeitspreis, Grundgebühr, Einspeisevergütung |
+| Standort & Anlage | Ort für das Wetter, kWp, Dachneigung und Ausrichtung für die Ertragsschätzung |
+
+Der Cloud-Zugriff nutzt dieselbe Schnittstelle wie die offizielle SENEC-App (nach dem Vorbild der Home-Assistant-Integration [marq24/ha-senec-v3](https://github.com/marq24/ha-senec-v3)). Sie ist nicht offiziell dokumentiert und kann sich ändern. Zwei-Faktor-Anmeldung wird noch nicht unterstützt.
 
 ## Automatischer Build
 
-Bei jedem Push baut GitHub Actions (`.github/workflows/android.yml`) die APK, führt die Tests aus und veröffentlicht sie als Release:
-
-- Builds von `main` → reguläres Release („Latest“)
-- Builds anderer Branches → Vorabversion (Pre-release)
-
-Die Versionsnummer ist `0.1.<Build-Nummer>`, dadurch lässt sich jede neue APK als Update installieren.
+`.github/workflows/android.yml` baut und testet bei jedem Push. Pushes auf `main` werden als Release mit Changelog aus den Commit-Nachrichten veröffentlicht; die Versionsnummer ist `0.2.<Build-Nummer>`.
 
 ### Signaturschlüssel
 
-Damit Updates über die alte Version installiert werden können, muss jede APK mit demselben Schlüssel signiert sein.
-Standardmäßig wird dafür `app/signing/pv-dashboard.jks` aus dem Repository verwendet (Passwort `pvdashboard`).
-Da das Repository öffentlich ist, kann man optional einen eigenen, geheimen Schlüssel hinterlegen
-(Settings → Secrets and variables → Actions):
+Damit Updates über die installierte Version passen, wird immer mit demselben Schlüssel signiert: standardmäßig `app/signing/pv-dashboard.jks` (Passwort `pvdashboard`). Da das Repository öffentlich ist, kann optional ein eigener Schlüssel über die Secrets `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS` und `SIGNING_KEY_PASSWORD` hinterlegt werden (danach einmal neu installieren).
 
-| Secret | Inhalt |
-| --- | --- |
-| `SIGNING_KEYSTORE_BASE64` | Keystore-Datei, base64-kodiert |
-| `SIGNING_STORE_PASSWORD` | Keystore-Passwort |
-| `SIGNING_KEY_ALIAS` | Schlüssel-Alias |
-| `SIGNING_KEY_PASSWORD` | Schlüssel-Passwort |
+## Lizenzen
 
-Achtung: Nach einem Schlüsselwechsel muss die App einmal deinstalliert und neu installiert werden.
-
-## Technik
-
-Kotlin, Jetpack Compose (Material 3), minSdk 26 (Android 8), keine Fremdbibliotheken für den Datenabruf.
+Schriften Doto und Space Mono unter SIL Open Font License (`licenses/`). Wetterdaten von [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
