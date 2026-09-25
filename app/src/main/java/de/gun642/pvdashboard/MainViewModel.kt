@@ -14,6 +14,8 @@ import de.gun642.pvdashboard.data.Updater
 import de.gun642.pvdashboard.senec.SenecClient
 import de.gun642.pvdashboard.senec.SenecSnapshot
 import de.gun642.pvdashboard.senec.cloud.SenecCloud
+import de.gun642.pvdashboard.senec.cloud.WallboxInfo
+import de.gun642.pvdashboard.senec.cloud.WallboxMode
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.stats.Period
 import de.gun642.pvdashboard.stats.PeriodType
@@ -42,7 +44,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
-enum class Tab(val label: String) { LIVE("Live"), STATS("Statistik"), WEATHER("Wetter") }
+enum class Tab(val label: String) { LIVE("Live"), STATS("Statistik"), WALLBOX("Wallbox"), WEATHER("Wetter") }
 
 enum class Screen { MAIN, SETTINGS, RAW }
 
@@ -244,6 +246,99 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         cloud.clear()
         updateSettings { copy(senecPassword = "") }
         loginStatus = "Abgemeldet"
+    }
+
+    // ---------- Wallbox ----------
+    var wallbox by mutableStateOf<WallboxInfo?>(null)
+        private set
+    var wallboxLoading by mutableStateOf(false)
+        private set
+    /** Läuft gerade eine Änderung? (Bedienelemente sperren) */
+    var wallboxBusy by mutableStateOf(false)
+        private set
+    var wallboxError by mutableStateOf<String?>(null)
+        private set
+
+    fun loadWallbox() {
+        if (!settings.value.hasCloud) {
+            wallboxError = "Für die Wallbox-Steuerung bitte in den Einstellungen das SENEC-Konto eintragen."
+            return
+        }
+        if (wallboxLoading) return
+        viewModelScope.launch {
+            wallboxLoading = true
+            try {
+                wallbox = readWallbox()
+                wallboxError = if (wallbox == null) "Im SENEC-Konto wurde keine Wallbox gefunden." else null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                wallboxError = "Wallbox nicht erreichbar: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                wallboxLoading = false
+            }
+        }
+    }
+
+    private suspend fun readWallbox(): WallboxInfo? {
+        val list = cloud.wallboxes()
+        return list.getOrNull(settings.value.wallboxIndex) ?: list.firstOrNull()
+    }
+
+    fun setWallboxMode(mode: WallboxMode) = changeWallbox("Lademodus „${mode.label}“", { it.mode == mode }) { wb ->
+        when {
+            mode == WallboxMode.LOCKED -> cloud.setWallboxLocked(wb.id, true)
+            else -> {
+                if (wb.mode == WallboxMode.LOCKED) cloud.setWallboxLocked(wb.id, false)
+                mode.apiType?.let { cloud.setWallboxMode(wb.id, it) }
+            }
+        }
+    }
+
+    fun setWallboxFastBattery(enabled: Boolean) =
+        changeWallbox(if (enabled) "Speicher lädt mit" else "Speicher lädt nicht mit", { it.fastAllowIntercharge == enabled }) { wb ->
+            cloud.setWallboxFastSettings(wb.id, enabled)
+        }
+
+    fun setWallboxPreventInterruptions(enabled: Boolean) =
+        changeWallbox(if (enabled) "Ladeunterbrechungen verhindern" else "Ladeunterbrechungen zulassen", { it.solarPreventInterruptions == enabled }) { wb ->
+            cloud.setWallboxSolarSettings(wb.id, WallboxInfo.solarSettingsBody(wb.solarSettings, preventInterruptions = enabled))
+        }
+
+    fun setWallboxMinCurrent(ampere: Double) =
+        changeWallbox("Mindestladestrom ${ampere.toInt()} A", { it.solarMinCurrent == ampere }) { wb ->
+            cloud.setWallboxSolarSettings(wb.id, WallboxInfo.solarSettingsBody(wb.solarSettings, minCurrent = ampere))
+        }
+
+    /**
+     * Führt eine Änderung aus und liest danach den tatsächlichen Zustand der Wallbox zurück.
+     * Nur wenn die Wallbox den neuen Wert meldet, gilt die Änderung als übernommen.
+     */
+    private fun changeWallbox(what: String, applied: (WallboxInfo) -> Boolean, action: suspend (WallboxInfo) -> Unit) {
+        val current = wallbox ?: return
+        if (wallboxBusy) return
+        viewModelScope.launch {
+            wallboxBusy = true
+            try {
+                action(current)
+                // Die Wallbox braucht einen Moment, bis der neue Zustand gemeldet wird.
+                var result: WallboxInfo? = null
+                for (attempt in 0 until 3) {
+                    delay(2_000)
+                    result = readWallbox()
+                    if (result != null && applied(result)) break
+                }
+                wallbox = result
+                message(if (result != null && applied(result)) "Übernommen: $what" else "Achtung: Die Wallbox meldet die Änderung noch nicht – bitte Anzeige prüfen.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Änderung fehlgeschlagen: ${e.message ?: e.javaClass.simpleName}")
+                runCatching { wallbox = readWallbox() }
+            } finally {
+                wallboxBusy = false
+            }
+        }
     }
 
     // ---------- Statistik ----------

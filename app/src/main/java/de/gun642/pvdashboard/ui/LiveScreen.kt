@@ -33,11 +33,16 @@ import de.gun642.pvdashboard.senec.SenecSnapshot
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.ui.theme.EnergyColors
 import de.gun642.pvdashboard.ui.theme.VoidTheme
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.sp
+import java.util.Locale
 import org.json.JSONObject
 import kotlin.math.abs
 
 @Composable
-fun LiveScreen(vm: MainViewModel, onSettings: () -> Unit) {
+fun LiveScreen(vm: MainViewModel, onSettings: () -> Unit, onWallbox: () -> Unit) {
     val c = VoidTheme.colors
     val s = vm.snapshot
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -49,7 +54,7 @@ fun LiveScreen(vm: MainViewModel, onSettings: () -> Unit) {
             vm.liveError?.let { ErrorTile(it) }
             if (s != null) {
                 Hero(s)
-                FlowTiles(s)
+                FlowTiles(s, onWallbox)
                 BatteryTile(s)
                 RatioTile(s)
                 vm.today?.let { TodayTile(it) }
@@ -111,7 +116,7 @@ private fun Hero(s: SenecSnapshot) {
 }
 
 @Composable
-private fun FlowTiles(s: SenecSnapshot) {
+private fun FlowTiles(s: SenecSnapshot, onWallbox: () -> Unit) {
     val grid = s.gridW
     val battery = s.batteryW
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -144,6 +149,7 @@ private fun FlowTiles(s: SenecSnapshot) {
                 watts = s.wallboxW,
                 color = EnergyColors.wallbox,
                 modifier = Modifier.weight(1f),
+                onClick = onWallbox,
                 detail = when (s.wallboxCarConnected) {
                     true -> "Auto verbunden"
                     false -> "Kein Auto"
@@ -162,8 +168,15 @@ private fun FlowTiles(s: SenecSnapshot) {
 }
 
 @Composable
-private fun FlowTile(label: String, watts: Double?, color: Color, modifier: Modifier, detail: String? = null) {
-    Tile(modifier) {
+private fun FlowTile(
+    label: String,
+    watts: Double?,
+    color: Color,
+    modifier: Modifier,
+    detail: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    Tile(modifier, onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(color)
             Spacer(Modifier.width(8.dp))
@@ -185,7 +198,7 @@ private fun BatteryTile(s: SenecSnapshot) {
             Text(formatPercent(soc / 100), style = MaterialTheme.typography.titleLarge, color = VoidTheme.colors.text)
         }
         Spacer(Modifier.height(10.dp))
-        DotBar((soc / 100).toFloat(), Modifier.fillMaxWidth().height(12.dp), dots = 24, color = EnergyColors.battery)
+        DotBar((soc / 100).toFloat(), Modifier.fillMaxWidth().height(12.dp), dots = 24, color = VoidTheme.colors.accent)
     }
 }
 
@@ -221,13 +234,19 @@ private fun TodayTile(t: EnergyTotals) {
 
 private class Series(val label: String, val color: Color, val value: (SenecSnapshot) -> Double?)
 
+/** Y-Achse des Verlaufs: fest 0–10 kW, bei höheren Werten in 2,5-kW-Schritten erweitert. */
+private const val CHART_MIN_MAX_KW = 10.0
+private const val CHART_STEP_KW = 2.5
+private const val CHART_WINDOW_MS = 30 * 60_000L
+
 @Composable
 private fun ChartTile(history: List<SenecSnapshot>) {
     val c = VoidTheme.colors
     val series = listOf(
         Series("PV", EnergyColors.pv) { it.pvW },
         Series("Haus", EnergyColors.house) { it.houseW },
-        Series("Netz", EnergyColors.gridImport) { it.gridW },
+        // Nur Netzbezug; Einspeisung wäre negativ und liegt unter der 0-Linie.
+        Series("Netzbezug", EnergyColors.gridImport) { s -> s.gridW?.coerceAtLeast(0.0) },
         Series("Wallbox", EnergyColors.wallbox) { it.wallboxW },
     )
     Tile(Modifier.fillMaxWidth()) {
@@ -237,19 +256,62 @@ private fun ChartTile(history: List<SenecSnapshot>) {
             Text("Wird aufgebaut, solange die App offen ist …", color = c.textMuted, style = MaterialTheme.typography.bodyMedium)
             return@Tile
         }
-        val values = history.flatMap { s -> series.mapNotNull { it.value(s) } }
-        val maxY = maxOf(values.maxOrNull() ?: 0.0, 500.0)
-        val minY = minOf(values.minOrNull() ?: 0.0, 0.0)
-        val start = history.first().timestamp
-        val span = (history.last().timestamp - start).coerceAtLeast(1L).toFloat()
-        Canvas(Modifier.fillMaxWidth().height(170.dp)) {
-            fun y(v: Double) = (size.height * (1 - (v - minY) / (maxY - minY))).toFloat()
-            fun x(t: Long) = size.width * (t - start) / span
-            drawLine(c.divider, Offset(0f, y(0.0)), Offset(size.width, y(0.0)), strokeWidth = 2f)
+        val peakKw = (history.flatMap { s -> series.mapNotNull { it.value(s) } }.maxOrNull() ?: 0.0) / 1000
+        val maxKw = maxOf(CHART_MIN_MAX_KW, Math.ceil(peakKw / CHART_STEP_KW) * CHART_STEP_KW)
+        val end = history.last().timestamp
+        val start = end - CHART_WINDOW_MS
+        val density = LocalDensity.current
+        val labelSizePx = with(density) { 9.sp.toPx() }
+        val leftPx = with(density) { 40.dp.toPx() }
+        val bottomPx = with(density) { 18.dp.toPx() }
+        val muted = c.textMuted
+        val grid = c.divider
+
+        Canvas(Modifier.fillMaxWidth().height(200.dp)) {
+            val plotW = size.width - leftPx
+            val plotH = size.height - bottomPx
+            fun y(watts: Double) = (plotH * (1 - (watts / 1000 / maxKw))).toFloat().coerceIn(0f, plotH)
+            fun x(t: Long) = leftPx + plotW * ((t - start).toFloat() / CHART_WINDOW_MS)
+
+            val paint = android.graphics.Paint().apply {
+                isAntiAlias = true
+                color = muted.toArgb()
+                textSize = labelSizePx
+                typeface = android.graphics.Typeface.MONOSPACE
+            }
+            val native = drawContext.canvas.nativeCanvas
+
+            // Y-Achse: Gitterlinien und Beschriftung in kW
+            var tick = 0.0
+            while (tick <= maxKw + 1e-6) {
+                val yy = y(tick * 1000)
+                drawLine(grid, Offset(leftPx, yy), Offset(size.width, yy), strokeWidth = if (tick == 0.0) 2f else 1f)
+                val text = if (tick % 1.0 == 0.0) String.format(Locale.GERMANY, "%.0f kW", tick) else String.format(Locale.GERMANY, "%.1f", tick)
+                paint.textAlign = android.graphics.Paint.Align.RIGHT
+                native.drawText(text, leftPx - 6f, yy + labelSizePx / 3, paint)
+                tick += CHART_STEP_KW
+            }
+
+            // X-Achse: Uhrzeit alle 10 Minuten
+            paint.textAlign = android.graphics.Paint.Align.CENTER
+            for (i in 0..3) {
+                val t = start + i * 10 * 60_000L
+                val xx = x(t)
+                drawLine(grid, Offset(xx, plotH), Offset(xx, plotH + 4f), strokeWidth = 1f)
+                val label = if (i == 3) "jetzt" else java.text.SimpleDateFormat("HH:mm", Locale.GERMANY).format(java.util.Date(t))
+                paint.textAlign = when (i) {
+                    0 -> android.graphics.Paint.Align.LEFT
+                    3 -> android.graphics.Paint.Align.RIGHT
+                    else -> android.graphics.Paint.Align.CENTER
+                }
+                native.drawText(label, xx, size.height - 2f, paint)
+            }
+
+            // Messreihen
             series.forEach { line ->
                 val path = Path()
                 var started = false
-                history.forEach { s ->
+                history.filter { it.timestamp >= start }.forEach { s ->
                     val v = line.value(s)
                     if (v == null) started = false
                     else if (!started) { path.moveTo(x(s.timestamp), y(v)); started = true }
@@ -258,13 +320,8 @@ private fun ChartTile(history: List<SenecSnapshot>) {
                 drawPath(path, line.color, style = Stroke(width = 4f))
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Legend(series.map { it.label to it.color })
-        Spacer(Modifier.height(4.dp))
-        Row(Modifier.fillMaxWidth()) {
-            Label(formatTime(history.first().timestamp), Modifier.weight(1f))
-            Label("max ${formatPower(maxY)}")
-        }
     }
 }
 

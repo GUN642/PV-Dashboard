@@ -121,6 +121,43 @@ class SenecCloud(context: Context, private val credentials: () -> Pair<String, S
         Instant.ofEpochMilli(start)
     }
 
+    // ---------- Wallbox-Steuerung ----------
+
+    /** Alle Wallboxen der Anlage mit Modus und Einstellungen. */
+    suspend fun wallboxes(): List<WallboxInfo> = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("systemIds", JSONArray().put(systemId())).toString()
+        val list = WallboxInfo.parseList(appRequest("$WALLBOX/wallbox/api/v1/systems/wallboxes/search", "POST", body))
+        prefs.edit().putString("wallbox_ids", list.joinToString(",") { it.id }).apply()
+        list
+    }
+
+    /** Sperren bzw. entsperren. */
+    suspend fun setWallboxLocked(wallboxId: String, locked: Boolean) = withContext(Dispatchers.IO) {
+        appRequest("${wallboxBase(wallboxId)}/locked/$locked", "PATCH", "")
+        Unit
+    }
+
+    /** Lademodus FAST, SOLAR oder COMFORT setzen. */
+    suspend fun setWallboxMode(wallboxId: String, apiType: String) = withContext(Dispatchers.IO) {
+        appRequest("${wallboxBase(wallboxId)}/charging-mode/$apiType", "POST", "")
+        Unit
+    }
+
+    /** Schnellladen: darf der Speicher mitladen? */
+    suspend fun setWallboxFastSettings(wallboxId: String, allowIntercharge: Boolean) = withContext(Dispatchers.IO) {
+        appRequest("${wallboxBase(wallboxId)}/settings/fast-charge", "POST", JSONObject().put("allowIntercharge", allowIntercharge).toString())
+        Unit
+    }
+
+    /** Solar-Laden: [body] aus [WallboxInfo.solarSettingsBody]. */
+    suspend fun setWallboxSolarSettings(wallboxId: String, body: String) = withContext(Dispatchers.IO) {
+        appRequest("${wallboxBase(wallboxId)}/settings/solar-charge", "POST", body)
+        Unit
+    }
+
+    private suspend fun wallboxBase(wallboxId: String) =
+        "$WALLBOX/wallbox/api/v1/systems/${systemId()}/wallboxes/${Http.encode(wallboxId)}"
+
     // ---------- Anlage & Wallbox ----------
 
     private suspend fun systemId(): String {

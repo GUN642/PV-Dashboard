@@ -79,8 +79,9 @@ fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit) {
                         Screen.MAIN -> {
                             val openSettings = { vm.screen = Screen.SETTINGS }
                             when (vm.tab) {
-                                Tab.LIVE -> LiveScreen(vm, openSettings)
+                                Tab.LIVE -> LiveScreen(vm, openSettings) { vm.tab = Tab.WALLBOX }
                                 Tab.STATS -> StatsScreen(vm, settings, openSettings)
+                                Tab.WALLBOX -> WallboxScreen(vm, settings, openSettings)
                                 Tab.WEATHER -> WeatherScreen(vm, settings, openSettings)
                             }
                         }
@@ -121,11 +122,11 @@ private fun TabBar(current: Tab, onSelect: (Tab) -> Unit) {
     val c = VoidTheme.colors
     Column(Modifier.fillMaxWidth().background(c.background)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.divider))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp)) {
             Tab.entries.forEach { tab ->
                 val selected = tab == current
                 Column(
-                    Modifier.clip(RoundedCornerShape(16.dp)).clickable { onSelect(tab) }.padding(horizontal = 18.dp, vertical = 8.dp),
+                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onSelect(tab) }.padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(if (selected) c.accent else Color.Transparent))
