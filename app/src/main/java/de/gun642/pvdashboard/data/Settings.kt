@@ -75,6 +75,10 @@ data class AppSettings(
     val dotHeadings: Boolean = true,
     val dotGrid: Boolean = true,
     val autoUpdateCheck: Boolean = true,
+    // Widget
+    val widgetDark: Boolean = true,
+    /** Deckkraft des Widget-Hintergrunds in % (0 = durchsichtig, 100 = deckend). */
+    val widgetOpacity: Int = 85,
 ) {
     val hasLocal: Boolean get() = host.isNotBlank()
     val hasCloud: Boolean get() = senecEmail.isNotBlank() && senecPassword.isNotBlank()
@@ -140,6 +144,8 @@ class SettingsRepository(context: Context) {
             dotHeadings = prefs.getBoolean("dot_headings", d.dotHeadings),
             dotGrid = prefs.getBoolean("dot_grid", d.dotGrid),
             autoUpdateCheck = prefs.getBoolean("auto_update", d.autoUpdateCheck),
+            widgetDark = prefs.getBoolean("widget_dark", d.widgetDark),
+            widgetOpacity = prefs.getInt("widget_opacity", d.widgetOpacity),
         )
     }
 
@@ -173,6 +179,8 @@ class SettingsRepository(context: Context) {
         e.putBoolean("dot_headings", s.dotHeadings)
         e.putBoolean("dot_grid", s.dotGrid)
         e.putBoolean("auto_update", s.autoUpdateCheck)
+        e.putBoolean("widget_dark", s.widgetDark)
+        e.putInt("widget_opacity", s.widgetOpacity.coerceIn(0, 100))
         e.apply()
     }
 }

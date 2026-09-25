@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Weiße Fläche; Farbe (schwarz/weiß) und Deckkraft setzt das Widget zur Laufzeit -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="28dp" />
+</shape>

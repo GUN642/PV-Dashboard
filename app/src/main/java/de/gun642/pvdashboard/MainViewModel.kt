@@ -24,6 +24,8 @@ import de.gun642.pvdashboard.stats.Tariff
 import de.gun642.pvdashboard.weather.Forecast
 import de.gun642.pvdashboard.weather.OpenMeteo
 import de.gun642.pvdashboard.weather.Place
+import de.gun642.pvdashboard.widget.LiveWidget
+import de.gun642.pvdashboard.widget.WidgetCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -88,6 +90,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             cloud.clear()
             loginStatus = null
             statsResult = null
+        }
+        if (before.widgetDark != after.widgetDark || before.widgetOpacity != after.widgetOpacity) {
+            LiveWidget.updateAll(getApplication<Application>())
         }
         if (before.host != after.host || before.useHttps != after.useHttps || before.dataSource != after.dataSource) {
             skipLocalUntil = 0
@@ -170,6 +175,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val snap = result ?: throw localError ?: IllegalStateException("Keine Daten")
             val cutoff = snap.timestamp - 30 * 60_000
             snapshot = snap
+            shareWithWidget(snap)
             history = history.filter { it.timestamp >= cutoff && it.timestamp < snap.timestamp } + snap
             liveError = null
             if (!usedCloud && canCloud) refreshTodayIfDue()
@@ -181,6 +187,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             liveLoading = false
         }
         return usedCloud
+    }
+
+    private var widgetUpdatedAt = 0L
+
+    /** Gibt die ohnehin abgerufenen Werte ans Widget weiter (höchstens alle 30 s neu zeichnen). */
+    private fun shareWithWidget(snap: SenecSnapshot) {
+        val app = getApplication<Application>()
+        WidgetCache.save(app, snap)
+        if (System.currentTimeMillis() - widgetUpdatedAt > 30_000) {
+            widgetUpdatedAt = System.currentTimeMillis()
+            LiveWidget.updateAll(app)
+        }
     }
 
     /** Tageswerte aus der Cloud, auch wenn die Live-Werte lokal kommen (alle 5 Minuten). */
@@ -418,7 +436,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         showUpdateDialog = false
         val url = release.apkUrl ?: return message("Für diese Version gibt es keine APK")
         if (downloadJob?.isActive == true) return
-        val target = File(getApplication<Application>().cacheDir, "updates/PV-Dashboard-${release.version}.apk")
+        val target = File(getApplication<Application>().cacheDir, "updates/VOID-PV-Dashboard-${release.version}.apk")
         downloadJob = viewModelScope.launch {
             downloadProgress = 0L to release.apkSize
             try {

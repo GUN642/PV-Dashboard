@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -205,6 +207,35 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             Group("Design")
             Toggle("Dot-Matrix-Überschriften", "Pixelschrift im Nothing-Stil", s.dotHeadings) { v -> vm.updateSettings { copy(dotHeadings = v) } }
             Toggle("Punkteraster", "Dezentes Punktmuster im Hintergrund", s.dotGrid) { v -> vm.updateSettings { copy(dotGrid = v) } }
+
+            // ---------- Widget ----------
+            Group("Widget")
+            Hint("Widget auf dem Startbildschirm hinzufügen: lange auf eine freie Stelle tippen → Widgets → VOID PV Dashboard. Aktualisiert wird per Tipp auf ⟳ – kein Hintergrund-Timer, schont den Akku.")
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Schwarz", s.widgetDark, { vm.updateSettings { copy(widgetDark = true) } })
+                Pill("Weiß", !s.widgetDark, { vm.updateSettings { copy(widgetDark = false) } })
+            }
+            Spacer(Modifier.height(12.dp))
+            var opacity by remember(s.widgetOpacity) { mutableStateOf(s.widgetOpacity.toFloat()) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Label("Deckkraft", Modifier.weight(1f))
+                Label("${opacity.toInt()} %", color = c.text)
+            }
+            Slider(
+                value = opacity,
+                onValueChange = { opacity = it },
+                onValueChangeFinished = { vm.updateSettings { copy(widgetOpacity = opacity.toInt()) } },
+                valueRange = 0f..100f,
+                steps = 19,
+                colors = SliderDefaults.colors(
+                    thumbColor = c.accent,
+                    activeTrackColor = c.accent,
+                    inactiveTrackColor = c.surfaceHigh,
+                    activeTickColor = c.onAccent.copy(alpha = 0.4f),
+                    inactiveTickColor = c.textMuted.copy(alpha = 0.4f),
+                ),
+            )
 
             // ---------- Updates ----------
             Group("Updates")

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">VOID PV Dashboard</string>
+    <string name="widget_description">Live-Werte der PV-Anlage. Aktualisierung per Tipp auf ⟳.</string>
 </resources>

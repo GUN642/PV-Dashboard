@@ -48,12 +48,12 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testReleaseUnitTest assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk PV-Dashboard.apk
+          cp app/build/outputs/apk/release/app-release.apk "VOID-PV-Dashboard-${VERSION}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PV-Dashboard-${{ env.VERSION }}
-          path: PV-Dashboard.apk
+          name: VOID-PV-Dashboard-${{ env.VERSION }}
+          path: VOID-PV-Dashboard-${{ env.VERSION }}.apk
 
       # Änderungen seit dem letzten Release aus den Commit-Nachrichten
       - name: Release-Notizen
@@ -77,4 +77,4 @@ jobs:
           target_commitish: ${{ github.sha }}
           make_latest: "true"
           body_path: notes.md
-          files: PV-Dashboard.apk
+          files: VOID-PV-Dashboard-${{ env.VERSION }}.apk

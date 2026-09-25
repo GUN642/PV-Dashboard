@@ -1,0 +1,20 @@
+<resources>
+    <style name="WidgetLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">#FF8C8C8C</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+
+    <style name="WidgetValue">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+</resources>

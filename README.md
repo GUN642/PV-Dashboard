@@ -4,7 +4,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 
 ## Installation
 
-1. Auf dem Handy **[Releases → Latest](https://github.com/GUN642/PV-Dashboard/releases/latest)** öffnen und `PV-Dashboard.apk` herunterladen.
+1. Auf dem Handy **[Releases → Latest](https://github.com/GUN642/PV-Dashboard/releases/latest)** öffnen und `VOID-PV-Dashboard-<Version>.apk` herunterladen.
 2. Datei öffnen und installieren (beim ersten Mal „Apps aus dieser Quelle installieren“ erlauben).
 3. Spätere Updates direkt in der App: **Einstellungen → Updates**.
 
@@ -16,6 +16,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 - **Kosten**: Stromkosten, Grundgebühr, Einspeisevergütung und Ersparnis durch PV nach eigenem Tarif
 - **Wetter**: Sonnenstunden-Prognose für 7 Tage (Open-Meteo) und geschätzter PV-Ertrag nach Anlagenleistung, Neigung, Azimut und Systemverlusten
 - **PVGIS-Referenz**: langjähriger Soll-Ertrag der EU (PVGIS) je Monat – automatisch geladen oder aus dem PVGIS-Bericht eingetragen; die Statistik zeigt Ist gegen Soll
+- **Widget**: Live-Werte auf dem Startbildschirm, schwarz oder weiß mit einstellbarer Deckkraft; Aktualisierung per Tipp auf ⟳ (kein Hintergrund-Timer), Tipp auf die Werte öffnet die App
 - **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
 
 ## Einrichtung in der App
