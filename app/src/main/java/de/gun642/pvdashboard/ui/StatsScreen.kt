@@ -134,7 +134,7 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
             labels = r.buckets.map { it.label },
             series = listOf(
                 EnergyColors.pv to r.buckets.map { it.totals.pv },
-                EnergyColors.house to r.buckets.map { it.totals.consumption },
+                EnergyColors.gridImport to r.buckets.map { it.totals.gridImport },
             ),
             labelEvery = when (r.period.type) {
                 PeriodType.DAY -> 3
@@ -144,7 +144,7 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
         )
         Spacer(Modifier.height(8.dp))
         Legend(
-            listOf("Erzeugung" to EnergyColors.pv, "Verbrauch" to EnergyColors.house) +
+            listOf("Erzeugung" to EnergyColors.pv, "Netzbezug" to EnergyColors.gridImport) +
                 if (pvgis != null && r.period.type != PeriodType.DAY) listOf("PVGIS" to c.textMuted) else emptyList()
         )
     }
