@@ -18,7 +18,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 - **PVGIS-Referenz**: langjähriger Soll-Ertrag der EU (PVGIS) je Monat – automatisch geladen oder aus dem PVGIS-Bericht eingetragen; die Statistik zeigt Ist gegen Soll
 - **Wallbox**: Lademodus (Schnell, Solar, Gesperrt), Speicher lädt mit, Ladeunterbrechungen verhindern, Mindestladestrom – über die SENEC-Cloud, mit Rückmeldung des tatsächlichen Zustands
 - **Haus**: Strom- und Wasserzählerstände eintragen, Verbrauch je Monat (mit Vorjahresvergleich) und Jahr, Hochrechnung und Kosten nach Tarif; CSV-Import und -Export im Format der bisherigen Zähler-App; Warnung bei auffällig hohem Wasserverbrauch (mögliches Leck)
-- **Verträge**: Strom, Wasser, Versicherungen, Internet, Abos … mit Kosten je Monat/Jahr, Laufzeit, automatischer Verlängerung und Kündigungsfrist; Erinnerung vor Fristende
+- **Finanzen** (Haus → Finanzen): Einnahmen und Ausgaben – monatlich, viertel-/halbjährlich, jährlich oder einmalig – mit Jahresbilanz, Sparquote, Diagramm je Monat (tatsächliche Zahlungstermine), Aufteilung nach Kategorien, Filter und Sortierung; Verträge mit Laufzeit, automatischer Verlängerung und Kündigungsfrist inkl. Erinnerung; **PDF-Bericht** (Überblick, Diagramm, Monatstabelle, Kategorien, alle Posten) zum Speichern oder Teilen
 - **Benachrichtigungen**: „Akku voll – Überschuss nutzen“ (Prüfung im gewählten Intervall, nur tagsüber, max. einmal täglich) und Erinnerungen an Kündigungsfristen
 - **Widget**: PV-Erzeugung und Autarkie groß, Aufteilung der PV-Erzeugung (Haus, Akku, Wallbox, Einspeisung), Netzbezug, Akku-Ladestand als farbige Punkte-Leiste; schwarz oder weiß mit einstellbarer Deckkraft; Aktualisierung per Tipp auf ⟳ (kein Hintergrund-Timer), Tipp auf die Werte öffnet die App
 - **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
@@ -38,7 +38,7 @@ Der Cloud-Zugriff nutzt dieselbe Schnittstelle wie die offizielle SENEC-App (nac
 
 ## Datensicherung
 
-- **Sicherungsdatei** (Einstellungen → Datensicherung): Zählerstände, Verträge und alle Einstellungen als JSON-Datei an einen frei wählbaren Ort (Google Drive, Nextcloud, Download-Ordner …); „Wiederherstellen“ spielt sie auf einem neuen Handy wieder ein.
+- **Sicherungsdatei** (Einstellungen → Datensicherung): Zählerstände, Finanzposten und alle Einstellungen als JSON-Datei an einen frei wählbaren Ort (Google Drive, Nextcloud, Download-Ordner …); „Wiederherstellen“ spielt sie auf einem neuen Handy wieder ein.
 - **Android-Backup**: zusätzlich sichert Android die App-Daten ins Google-Konto bzw. überträgt sie beim Gerätewechsel.
 - In beiden Fällen **ohne** SENEC-Passwort und Anmeldedaten (eigene Datei `secrets.xml`, ausgenommen). PV-Statistiken liegen in der SENEC-Cloud.
 

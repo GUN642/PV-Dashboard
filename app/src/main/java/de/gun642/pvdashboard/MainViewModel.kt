@@ -16,6 +16,9 @@ import de.gun642.pvdashboard.senec.SenecClient
 import de.gun642.pvdashboard.senec.SenecSnapshot
 import de.gun642.pvdashboard.contracts.Contract
 import de.gun642.pvdashboard.contracts.ContractStore
+import de.gun642.pvdashboard.contracts.FinanceFilter
+import de.gun642.pvdashboard.contracts.FinancePdf
+import de.gun642.pvdashboard.contracts.FinanceSummary
 import de.gun642.pvdashboard.meters.Consumption
 import de.gun642.pvdashboard.meters.MeterCsv
 import de.gun642.pvdashboard.meters.UsageWarning
@@ -485,12 +488,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveContract(contract: Contract) {
         contracts = contracts.filterNot { it.id == contract.id } + contract
         persistContracts()
-        message("Vertrag „${contract.name}“ gespeichert")
+        message("„${contract.name}“ gespeichert")
     }
 
     fun deleteContract(contract: Contract) {
         contracts = contracts.filterNot { it.id == contract.id }
         persistContracts()
+    }
+
+    // ---------- Finanzen (Einnahmen & Ausgaben) ----------
+    var financeYear by mutableStateOf(java.time.LocalDate.now().year)
+    var financeFilter by mutableStateOf(FinanceFilter.ALL)
+
+    fun financeSummary(year: Int = financeYear): FinanceSummary = FinanceSummary.of(contracts, year)
+
+    fun financePdfName(year: Int = financeYear) = "Einnahmen-Ausgaben-$year.pdf"
+
+    private fun writeFinancePdf(out: java.io.OutputStream, year: Int) =
+        FinancePdf.write(getApplication<Application>(), out, financeSummary(year), contracts)
+
+    /** PDF an einem selbst gewählten Ort speichern. */
+    fun exportFinancePdf(uri: android.net.Uri) {
+        val year = financeYear
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { writeFinancePdf(it, year) }
+                        ?: throw java.io.IOException("Datei nicht beschreibbar")
+                }
+                message("PDF gespeichert")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("PDF-Export fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
+    /** PDF erzeugen und über das Teilen-Menü weitergeben (Mail, Messenger, Drive …). */
+    fun shareFinancePdf() {
+        val year = financeYear
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
+                    File(dir, financePdfName(year)).also { f -> f.outputStream().use { writeFinancePdf(it, year) } }
+                }
+                _events.tryEmit(UiEvent.Share(file, "application/pdf"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("PDF-Export fehlgeschlagen: ${e.message}")
+            }
+        }
     }
 
     private fun persistContracts() {

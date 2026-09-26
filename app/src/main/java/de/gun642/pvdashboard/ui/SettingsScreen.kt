@@ -283,7 +283,7 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             }
             Toggle(
                 "Erinnerung an Kündigungsfristen",
-                "Für Verträge unter Haus → Verträge",
+                "Für Verträge unter Haus → Finanzen",
                 s.contractReminders,
             ) { v ->
                 vm.updateSettings { copy(contractReminders = v) }

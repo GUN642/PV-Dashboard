@@ -48,6 +48,7 @@ import de.gun642.pvdashboard.meters.MeterReading
 import de.gun642.pvdashboard.meters.MeterType
 import de.gun642.pvdashboard.meters.UsageWarning
 import de.gun642.pvdashboard.contracts.Contract
+import de.gun642.pvdashboard.contracts.FlowType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -81,8 +82,8 @@ fun MetersScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Uni
     val readings = vm.readings(type)
     var showAdd by remember { mutableStateOf(false) }
     var deleteReading by remember { mutableStateOf<MeterReading?>(null) }
-    // Vertrag bearbeiten: Pair(true, null) = neuer Vertrag
-    var editContract by remember { mutableStateOf<Pair<Boolean, Contract?>?>(null) }
+    // Posten bearbeiten: (Posten, ist neu)
+    var editContract by remember { mutableStateOf<Pair<Contract, Boolean>?>(null) }
     val requestNotifications = rememberNotificationPermissionRequest()
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.importMeterCsv(type, uri)
@@ -90,19 +91,18 @@ fun MetersScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Uni
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TabHeader("Haus") {
-            IconButton(onClick = { if (vm.showContracts) editContract = true to null else showAdd = true }) {
-                Icon(Icons.Filled.Add, if (vm.showContracts) "Vertrag anlegen" else "Zählerstand eintragen", tint = c.text)
+            IconButton(onClick = { if (vm.showContracts) editContract = newItem(FlowType.EXPENSE) to true else showAdd = true }) {
+                Icon(Icons.Filled.Add, if (vm.showContracts) "Posten anlegen" else "Zählerstand eintragen", tint = c.text)
             }
         }
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MeterType.entries.forEach { t -> Pill(t.label, !vm.showContracts && type == t, { vm.meterType = t; vm.showContracts = false }) }
-                Pill("Verträge", vm.showContracts, { vm.showContracts = true })
+                Pill("Finanzen", vm.showContracts, { vm.showContracts = true })
             }
 
             if (vm.showContracts) {
-                ContractsSection(vm) { editContract = true to it }
-                Pill("+ Vertrag", selected = true, onClick = { editContract = true to null })
+                ContractsSection(vm) { item, isNew -> editContract = item to isNew }
                 Spacer(Modifier.height(24.dp))
                 return@Column
             }
@@ -135,14 +135,15 @@ fun MetersScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Uni
         }
     }
 
-    editContract?.let { (_, contract) ->
+    editContract?.let { (contract, isNew) ->
         ContractDialog(
             initial = contract,
+            isNew = isNew,
             onDismiss = { editContract = null },
             onSave = {
                 editContract = null
                 vm.saveContract(it)
-                if (settings.contractReminders) requestNotifications()
+                if (settings.contractReminders && it.hasContract) requestNotifications()
             },
             onDelete = {
                 editContract = null
