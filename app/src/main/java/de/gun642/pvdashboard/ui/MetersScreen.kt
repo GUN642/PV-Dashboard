@@ -46,6 +46,11 @@ import de.gun642.pvdashboard.meters.Consumption
 import de.gun642.pvdashboard.meters.MeterCsv
 import de.gun642.pvdashboard.meters.MeterReading
 import de.gun642.pvdashboard.meters.MeterType
+import de.gun642.pvdashboard.meters.UsageWarning
+import de.gun642.pvdashboard.contracts.Contract
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import de.gun642.pvdashboard.ui.theme.EnergyColors
 import de.gun642.pvdashboard.ui.theme.VoidTheme
 import java.time.LocalDate
@@ -76,17 +81,30 @@ fun MetersScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Uni
     val readings = vm.readings(type)
     var showAdd by remember { mutableStateOf(false) }
     var deleteReading by remember { mutableStateOf<MeterReading?>(null) }
+    // Vertrag bearbeiten: Pair(true, null) = neuer Vertrag
+    var editContract by remember { mutableStateOf<Pair<Boolean, Contract?>?>(null) }
+    val requestNotifications = rememberNotificationPermissionRequest()
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.importMeterCsv(type, uri)
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        TabHeader("Zähler") {
-            IconButton(onClick = { showAdd = true }) { Icon(Icons.Filled.Add, "Zählerstand eintragen", tint = c.text) }
+        TabHeader("Haus") {
+            IconButton(onClick = { if (vm.showContracts) editContract = true to null else showAdd = true }) {
+                Icon(Icons.Filled.Add, if (vm.showContracts) "Vertrag anlegen" else "Zählerstand eintragen", tint = c.text)
+            }
         }
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MeterType.entries.forEach { t -> Pill(t.label, type == t, { vm.meterType = t }) }
+                MeterType.entries.forEach { t -> Pill(t.label, !vm.showContracts && type == t, { vm.meterType = t; vm.showContracts = false }) }
+                Pill("Verträge", vm.showContracts, { vm.showContracts = true })
+            }
+
+            if (vm.showContracts) {
+                ContractsSection(vm) { editContract = true to it }
+                Pill("+ Vertrag", selected = true, onClick = { editContract = true to null })
+                Spacer(Modifier.height(24.dp))
+                return@Column
             }
 
             if (readings.isEmpty()) {
@@ -115,6 +133,36 @@ fun MetersScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Uni
             )
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    editContract?.let { (_, contract) ->
+        ContractDialog(
+            initial = contract,
+            onDismiss = { editContract = null },
+            onSave = {
+                editContract = null
+                vm.saveContract(it)
+                if (settings.contractReminders) requestNotifications()
+            },
+            onDelete = {
+                editContract = null
+                vm.deleteContract(it)
+            },
+        )
+    }
+
+    vm.usageAlert?.let { w ->
+        AlertDialog(
+            onDismissRequest = { vm.usageAlert = null },
+            containerColor = c.surface,
+            title = { Text("Auffälliger Wasserverbrauch", color = c.text) },
+            text = { Text(leakText(w), color = c.textMuted) },
+            confirmButton = {
+                TextButton(onClick = { vm.usageAlert = null }) {
+                    Text("VERSTANDEN", style = MaterialTheme.typography.labelLarge, color = c.accent)
+                }
+            },
+        )
     }
 
     if (showAdd) {
@@ -161,6 +209,16 @@ private fun CurrentTile(vm: MainViewModel, type: MeterType, readings: List<Meter
             Label(last.date.format(dateFormat) + if (last.reported) " · gemeldet" else "")
         }
         BigValue(MeterCsv.formatValue(last.value), type.unit, size = 52)
+        if (type == MeterType.WATER) {
+            vm.waterWarning()?.let { w ->
+                Spacer(Modifier.height(8.dp))
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.accent.copy(alpha = 0.15f)).padding(12.dp)) {
+                    Label("Möglicher Wasserverlust", color = c.accent)
+                    Spacer(Modifier.height(4.dp))
+                    Text(leakText(w), color = c.text, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
         Spacer(Modifier.height(8.dp))
         Consumption.dailyAverage(readings, days = 90)?.let {
             ValueRow("Ø pro Tag (90 Tage)", "${formatAmount(it, type)} ${type.unit}")
@@ -352,3 +410,11 @@ private fun AddReadingDialog(type: MeterType, last: MeterReading?, onDismiss: ()
         },
     )
 }
+
+/** Erklärung zur Wasser-Warnung. */
+private fun leakText(w: UsageWarning): String = String.format(
+    de,
+    "Seit %s wurden %.2f m³ pro Tag verbraucht – %.0f %% mehr als im Durchschnitt (%.2f m³/Tag). " +
+        "Prüfe tropfende Wasserhähne, die WC-Spülung, den Garten- oder Heizungsanschluss und ob der Zähler bei geschlossenen Hähnen weiterläuft.",
+    w.from.format(dateFormat), w.recentPerDay, w.percentAbove, w.averagePerDay,
+)

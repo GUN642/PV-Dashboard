@@ -200,10 +200,12 @@ class LiveWidget : AppWidgetProvider() {
             Intent(context, LiveWidget::class.java).setAction(ACTION_REFRESH)
 
         /** Wie die App: im Heimnetz direkt vom Speicher, sonst über die SENEC-Cloud. */
-        private suspend fun fetchAndCache(context: Context) {
+        /** Holt Live-Werte und legt sie für Widget und Hintergrundprüfung ab. */
+        suspend fun fetchAndCache(context: Context): SenecSnapshot {
             val settings = SettingsRepository(context).settings.value
             val snapshot = fetch(context, settings)
             WidgetCache.save(context, snapshot)
+            return snapshot
         }
 
         private suspend fun fetch(context: Context, s: AppSettings): SenecSnapshot {

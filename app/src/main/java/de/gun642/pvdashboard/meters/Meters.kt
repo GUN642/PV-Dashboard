@@ -135,6 +135,28 @@ object Consumption {
         return sum / span
     }
 
+    /**
+     * Auffälliger Mehrverbrauch seit der letzten Ablesung, z. B. durch ein Leck.
+     * Vergleicht den Verbrauch pro Tag im letzten Intervall mit dem Durchschnitt davor (bis zu 365 Tage).
+     *
+     * @param thresholdPercent Warnung ab so viel Prozent über dem Durchschnitt
+     * @param minExcessPerDay Mindest-Mehrverbrauch pro Tag, damit Kleinstmengen nicht warnen
+     */
+    fun unusualIncrease(readings: List<MeterReading>, thresholdPercent: Int, minExcessPerDay: Double = 0.0): UsageWarning? {
+        val sorted = readings.sortedBy { it.date }
+        if (sorted.size < 3) return null
+        val last = sorted[sorted.size - 1]
+        val previous = sorted[sorted.size - 2]
+        val days = ChronoUnit.DAYS.between(previous.date, last.date)
+        if (days <= 0) return null
+        val recent = (last.value - previous.value) / days
+        if (recent < 0) return null
+        val average = dailyAverage(sorted.dropLast(1)) ?: return null
+        if (average <= 0) return null
+        val limit = average * (1 + thresholdPercent / 100.0)
+        return if (recent > limit && recent - average >= minExcessPerDay) UsageWarning(recent, average, previous.date, last.date) else null
+    }
+
     /** Hochrechnung auf ein Jahr aus dem Verbrauch der letzten 365 Tage (bzw. der vorhandenen Daten). */
     fun yearlyProjection(readings: List<MeterReading>): Double? = dailyAverage(readings)?.let { it * 365 }
 
@@ -154,6 +176,11 @@ object Consumption {
             }
         }
     }
+}
+
+/** Deutlich höherer Verbrauch pro Tag im letzten Ableseintervall als im Durchschnitt davor. */
+data class UsageWarning(val recentPerDay: Double, val averagePerDay: Double, val from: LocalDate, val to: LocalDate) {
+    val percentAbove: Double get() = (recentPerDay / averagePerDay - 1) * 100
 }
 
 /** Wassertarif: Frischwasser und Abwasser je m³ plus Grundgebühr. */

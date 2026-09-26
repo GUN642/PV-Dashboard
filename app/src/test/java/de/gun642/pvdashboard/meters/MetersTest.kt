@@ -97,3 +97,28 @@ class MetersTest {
         assertEquals(data, MeterStore.fromJson(MeterStore.toJson(data)))
     }
 }
+
+class LeakCheckTest {
+    private fun r(day: Int, value: Double) = MeterReading(LocalDate.of(2025, 1, 1).plusDays(day.toLong()), value)
+
+    @Test
+    fun warnsOnClearIncrease() {
+        // 100 Tage mit 0,2 m³/Tag, danach 10 Tage mit 0,5 m³/Tag
+        val readings = listOf(r(0, 0.0), r(50, 10.0), r(100, 20.0), r(110, 25.0))
+        val w = Consumption.unusualIncrease(readings, thresholdPercent = 50, minExcessPerDay = 0.05)!!
+        assertEquals(0.5, w.recentPerDay, 1e-9)
+        assertEquals(0.2, w.averagePerDay, 1e-9)
+        assertEquals(150.0, w.percentAbove, 1e-6)
+    }
+
+    @Test
+    fun noWarningForNormalUsage() {
+        val readings = listOf(r(0, 0.0), r(50, 10.0), r(100, 20.0), r(110, 22.5))
+        assertEquals(null, Consumption.unusualIncrease(readings, thresholdPercent = 50))
+    }
+
+    @Test
+    fun noWarningWithTooLittleHistory() {
+        assertEquals(null, Consumption.unusualIncrease(listOf(r(0, 0.0), r(10, 50.0)), thresholdPercent = 50))
+    }
+}

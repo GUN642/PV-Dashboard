@@ -80,6 +80,15 @@ data class AppSettings(
     val waterPricePerM3: Double = 0.0,
     val wastewaterPerM3: Double = 0.0,
     val waterBaseFeePerMonth: Double = 0.0,
+    // Benachrichtigungen
+    /** Hinweis bei vollem Akku und Überschuss */
+    val surplusNotify: Boolean = false,
+    val surplusIntervalMinutes: Int = 60,
+    val surplusSocPercent: Int = 95,
+    val surplusExportW: Int = 1000,
+    /** Wasser-Warnung ab so viel Prozent über dem Durchschnitt */
+    val leakWarnPercent: Int = 50,
+    val contractReminders: Boolean = true,
     // Widget
     val widgetDark: Boolean = true,
     /** Deckkraft des Widget-Hintergrunds in % (0 = durchsichtig, 100 = deckend). */
@@ -153,6 +162,12 @@ class SettingsRepository(context: Context) {
             waterPricePerM3 = double("water_price") ?: d.waterPricePerM3,
             wastewaterPerM3 = double("wastewater_price") ?: d.wastewaterPerM3,
             waterBaseFeePerMonth = double("water_base_fee") ?: d.waterBaseFeePerMonth,
+            surplusNotify = prefs.getBoolean("surplus_notify", d.surplusNotify),
+            surplusIntervalMinutes = prefs.getInt("surplus_interval", d.surplusIntervalMinutes),
+            surplusSocPercent = prefs.getInt("surplus_soc", d.surplusSocPercent),
+            surplusExportW = prefs.getInt("surplus_export", d.surplusExportW),
+            leakWarnPercent = prefs.getInt("leak_warn_percent", d.leakWarnPercent),
+            contractReminders = prefs.getBoolean("contract_reminders", d.contractReminders),
             widgetDark = prefs.getBoolean("widget_dark", d.widgetDark),
             widgetOpacity = prefs.getInt("widget_opacity", d.widgetOpacity),
         )
@@ -192,6 +207,12 @@ class SettingsRepository(context: Context) {
         putDouble("water_price", s.waterPricePerM3)
         putDouble("wastewater_price", s.wastewaterPerM3)
         putDouble("water_base_fee", s.waterBaseFeePerMonth)
+        e.putBoolean("surplus_notify", s.surplusNotify)
+        e.putInt("surplus_interval", s.surplusIntervalMinutes.coerceIn(15, 720))
+        e.putInt("surplus_soc", s.surplusSocPercent.coerceIn(10, 100))
+        e.putInt("surplus_export", s.surplusExportW.coerceIn(0, 30_000))
+        e.putInt("leak_warn_percent", s.leakWarnPercent.coerceIn(10, 500))
+        e.putBoolean("contract_reminders", s.contractReminders)
         e.putBoolean("widget_dark", s.widgetDark)
         e.putInt("widget_opacity", s.widgetOpacity.coerceIn(0, 100))
         e.apply()

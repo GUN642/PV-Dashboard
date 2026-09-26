@@ -13,7 +13,12 @@ import de.gun642.pvdashboard.data.SettingsRepository
 import de.gun642.pvdashboard.data.Updater
 import de.gun642.pvdashboard.senec.SenecClient
 import de.gun642.pvdashboard.senec.SenecSnapshot
+import de.gun642.pvdashboard.contracts.Contract
+import de.gun642.pvdashboard.contracts.ContractStore
+import de.gun642.pvdashboard.meters.Consumption
 import de.gun642.pvdashboard.meters.MeterCsv
+import de.gun642.pvdashboard.meters.UsageWarning
+import de.gun642.pvdashboard.notify.BackgroundChecks
 import de.gun642.pvdashboard.meters.MeterReading
 import de.gun642.pvdashboard.meters.MeterStore
 import de.gun642.pvdashboard.meters.MeterType
@@ -49,7 +54,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
-enum class Tab(val label: String) { LIVE("Live"), STATS("Statistik"), WALLBOX("Wallbox"), WEATHER("Wetter"), METERS("Zähler") }
+enum class Tab(val label: String) { LIVE("Live"), STATS("Statistik"), WALLBOX("Wallbox"), WEATHER("Wetter"), HOME("Haus") }
 
 enum class Screen { MAIN, SETTINGS, RAW }
 
@@ -98,6 +103,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             cloud.clear()
             loginStatus = null
             statsResult = null
+        }
+        if (before.surplusNotify != after.surplusNotify || before.surplusIntervalMinutes != after.surplusIntervalMinutes ||
+            before.contractReminders != after.contractReminders || before.hasLocal != after.hasLocal || before.hasCloud != after.hasCloud
+        ) {
+            BackgroundChecks.apply(getApplication<Application>(), after)
         }
         if (before.widgetDark != after.widgetDark || before.widgetOpacity != after.widgetOpacity) {
             LiveWidget.updateAll(getApplication<Application>())
@@ -367,9 +377,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) { meterStore.save(snapshot) }
     }
 
+    /** Hinweis nach dem Eintragen, z. B. „Wasserverbrauch deutlich über dem Durchschnitt“. */
+    var usageAlert by mutableStateOf<UsageWarning?>(null)
+
     fun addReading(type: MeterType, reading: MeterReading) {
         updateReadings(type, MeterCsv.merge(readings(type), listOf(reading)))
         message("${type.label}: Zählerstand ${MeterCsv.formatValue(reading.value)} ${type.unit} gespeichert")
+        if (type == MeterType.WATER) {
+            usageAlert = waterWarning()?.takeIf { it.to == reading.date }
+        }
+    }
+
+    /** Auffällig hoher Wasserverbrauch seit der letzten Ablesung (Leck?). */
+    fun waterWarning(): UsageWarning? =
+        Consumption.unusualIncrease(readings(MeterType.WATER), settings.value.leakWarnPercent, minExcessPerDay = 0.03)
+
+    // ---------- Verträge ----------
+    private val contractStore = ContractStore(app)
+    var contracts by mutableStateOf(contractStore.load())
+        private set
+    /** Im Haus-Tab: Verträge statt Zähler anzeigen */
+    var showContracts by mutableStateOf(false)
+
+    fun saveContract(contract: Contract) {
+        contracts = contracts.filterNot { it.id == contract.id } + contract
+        persistContracts()
+        message("Vertrag „${contract.name}“ gespeichert")
+    }
+
+    fun deleteContract(contract: Contract) {
+        contracts = contracts.filterNot { it.id == contract.id }
+        persistContracts()
+    }
+
+    private fun persistContracts() {
+        val snapshot = contracts
+        viewModelScope.launch(Dispatchers.IO) { contractStore.save(snapshot) }
     }
 
     fun deleteReading(type: MeterType, reading: MeterReading) {

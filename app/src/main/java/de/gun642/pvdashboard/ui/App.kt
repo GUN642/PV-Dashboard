@@ -85,7 +85,7 @@ fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit, onShare: (java.io.
                                 Tab.STATS -> StatsScreen(vm, settings, openSettings)
                                 Tab.WALLBOX -> WallboxScreen(vm, settings, openSettings)
                                 Tab.WEATHER -> WeatherScreen(vm, settings, openSettings)
-                                Tab.METERS -> MetersScreen(vm, settings, openSettings)
+                                Tab.HOME -> MetersScreen(vm, settings, openSettings)
                             }
                         }
                     }

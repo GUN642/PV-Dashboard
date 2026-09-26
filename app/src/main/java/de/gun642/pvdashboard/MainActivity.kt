@@ -10,6 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.content.FileProvider
+import de.gun642.pvdashboard.notify.BackgroundChecks
+import de.gun642.pvdashboard.notify.Notifier
 import de.gun642.pvdashboard.ui.App
 import java.io.File
 
@@ -19,7 +21,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        Notifier.ensureChannels(this)
+        BackgroundChecks.apply(this, viewModel.settings.value)
+        openTabFrom(intent)
         setContent { App(viewModel, ::installApk, ::shareFile) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openTabFrom(intent)
+    }
+
+    /** Aus einer Benachrichtigung heraus direkt den passenden Tab öffnen. */
+    private fun openTabFrom(intent: Intent?) {
+        val name = intent?.getStringExtra(Notifier.EXTRA_TAB) ?: return
+        Tab.entries.firstOrNull { it.name == name }?.let {
+            viewModel.tab = it
+            viewModel.screen = Screen.MAIN
+            if (it == Tab.HOME) viewModel.showContracts = true
+        }
     }
 
     override fun onResume() {

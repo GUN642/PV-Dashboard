@@ -65,6 +65,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
+    // Hintergrundprüfungen (Überschuss-Hinweis, Vertragserinnerungen)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     testImplementation("junit:junit:4.13.2")
     // Echte org.json-Implementierung für Unit-Tests (Android stellt sie nur zur Laufzeit bereit)

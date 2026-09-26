@@ -222,6 +222,47 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             Toggle("Dot-Matrix-Überschriften", "Pixelschrift im Nothing-Stil", s.dotHeadings) { v -> vm.updateSettings { copy(dotHeadings = v) } }
             Toggle("Punkteraster", "Dezentes Punktmuster im Hintergrund", s.dotGrid) { v -> vm.updateSettings { copy(dotGrid = v) } }
 
+            // ---------- Benachrichtigungen ----------
+            Group("Benachrichtigungen")
+            val requestNotifications = rememberNotificationPermissionRequest()
+            Toggle(
+                "Hinweis bei vollem Akku",
+                "Benachrichtigung, wenn der Akku voll ist und Strom eingespeist wird – Zeit für Waschmaschine oder Wallbox",
+                s.surplusNotify,
+            ) { v ->
+                vm.updateSettings { copy(surplusNotify = v) }
+                if (v) requestNotifications()
+            }
+            if (s.surplusNotify) {
+                Spacer(Modifier.height(6.dp))
+                Label("Prüfen alle")
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(30 to "30 min", 60 to "1 h", 120 to "2 h", 240 to "4 h").forEach { (minutes, label) ->
+                        Pill(label, s.surplusIntervalMinutes == minutes, { vm.updateSettings { copy(surplusIntervalMinutes = minutes) } })
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NumberField(s.surplusSocPercent.toDouble(), { v -> vm.updateSettings { copy(surplusSocPercent = v.toInt().coerceIn(10, 100)) } }, "Akku ab", "%", Modifier.weight(1f))
+                    NumberField(s.surplusExportW.toDouble(), { v -> vm.updateSettings { copy(surplusExportW = v.toInt().coerceIn(0, 30_000)) } }, "Einspeisung ab", "W", Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(6.dp))
+                Hint("Geprüft wird nur zwischen 9 und 18 Uhr und höchstens einmal pro Tag benachrichtigt. Eine kurze Abfrage pro Intervall – kaum Akkuverbrauch.")
+            }
+            Toggle(
+                "Erinnerung an Kündigungsfristen",
+                "Für Verträge unter Haus → Verträge",
+                s.contractReminders,
+            ) { v ->
+                vm.updateSettings { copy(contractReminders = v) }
+                if (v) requestNotifications()
+            }
+            Spacer(Modifier.height(8.dp))
+            NumberField(s.leakWarnPercent.toDouble(), { v -> vm.updateSettings { copy(leakWarnPercent = v.toInt().coerceIn(10, 500)) } }, "Wasser-Warnung ab Mehrverbrauch", "%")
+            Spacer(Modifier.height(6.dp))
+            Hint("Nach dem Eintragen eines Wasserzählerstands warnt die App, wenn der Verbrauch pro Tag seit der letzten Ablesung so viel über dem Durchschnitt liegt (mögliches Leck).")
+
             // ---------- Widget ----------
             Group("Widget")
             Hint("Widget auf dem Startbildschirm hinzufügen: lange auf eine freie Stelle tippen → Widgets → VOID Home Dashboard. Aktualisiert wird per Tipp auf ⟳ – kein Hintergrund-Timer, schont den Akku.")
