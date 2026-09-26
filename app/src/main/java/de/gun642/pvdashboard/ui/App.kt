@@ -125,11 +125,11 @@ private fun TabBar(current: Tab, onSelect: (Tab) -> Unit) {
     val c = VoidTheme.colors
     Column(Modifier.fillMaxWidth().background(c.background)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.divider))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 6.dp)) {
             Tab.entries.forEach { tab ->
                 val selected = tab == current
                 Column(
-                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onSelect(tab) }.padding(vertical = 8.dp),
+                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onSelect(tab) }.padding(vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(if (selected) c.accent else Color.Transparent))
@@ -138,8 +138,9 @@ private fun TabBar(current: Tab, onSelect: (Tab) -> Unit) {
                         tab.label.uppercase(),
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 11.sp,
-                            letterSpacing = 0.3.sp,
+                            // so groß, wie „STATISTIK“ bei fünf Tabs in die Breite passt
+                            fontSize = 13.sp,
+                            letterSpacing = 0.sp,
                         ),
                         color = if (selected) c.text else c.textMuted,
                         maxLines = 1,
