@@ -217,6 +217,11 @@ object EnergyColors {
     val battery = Color(0xFF3D7BFF)
     val wallbox = Color(0xFFFF4F8B)
 
+    /** Speicher-Entladung heller als Laden, damit beide Balken unterscheidbar sind. */
+    val batteryDischarge = Color(0xFF9DB9FF)
+    /** Autarkie-Linie in der Statistik */
+    val autarky = Color(0xFFFFC400)
+
     /** Verbrauch in Textfarbe (weiß bzw. schwarz je nach Design). */
     val house: Color @Composable get() = VoidTheme.colors.text
 }

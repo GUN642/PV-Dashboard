@@ -1,5 +1,17 @@
 package de.gun642.pvdashboard.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import de.gun642.pvdashboard.stats.EnergySeries
+import de.gun642.pvdashboard.stats.YearCompare
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -99,9 +111,23 @@ fun StatsScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Unit
 }
 
 @Composable
+private fun seriesColor(series: EnergySeries): Color = when (series) {
+    EnergySeries.CONSUMPTION -> EnergyColors.house
+    EnergySeries.GRID_IMPORT -> EnergyColors.gridImport
+    EnergySeries.GRID_EXPORT -> EnergyColors.gridExport
+    EnergySeries.BATTERY_CHARGE -> EnergyColors.battery
+    EnergySeries.BATTERY_DISCHARGE -> EnergyColors.batteryDischarge
+    EnergySeries.WALLBOX -> EnergyColors.wallbox
+}
+
+@Composable
 private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Unit) {
     val c = VoidTheme.colors
     val t = r.totals
+    val pvgis = vm.pvgis
+    // Vorjahr statt PVGIS, sobald Vorjahresdaten vorliegen
+    val previous = vm.statsCompare?.takeIf { it.period == YearCompare.previousPeriod(r.period) && YearCompare.available(it) }
+    val shown = EnergySeries.entries.filter { it in vm.chartSeries }
 
     Tile(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -111,38 +137,42 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
         }
         val kwh = formatKwh(t.pv).split(' ')
         BigValue(kwh[0], kwh.getOrElse(1) { "kWh" }, size = 56)
-        val pvgis = vm.pvgis
-        if (pvgis != null) {
-            val target = pvgis.target(r.period, r.dataStart)
-            if (target > 0) {
-                val ratio = t.pv / target
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Label(
-                        (if (r.period.type == PeriodType.DAY) "PVGIS-Tagesmittel " else "PVGIS-Soll bis jetzt ") + formatKwh(target),
-                        Modifier.weight(1f),
-                    )
-                    Label(
-                        String.format(Locale.GERMANY, "%.0f %%", ratio * 100),
-                        color = if (ratio >= 1) EnergyColors.gridExport else c.text,
-                    )
-                }
+        val running = r.period.end.isAfter(java.time.LocalDate.now())
+        val (refLabel, refValue) = when {
+            previous != null && YearCompare.complete(previous) ->
+                (if (running) "Vorjahr bis jetzt " else "Vorjahr ") to YearCompare.toDate(r.period, previous.buckets)
+            pvgis != null ->
+                (if (r.period.type == PeriodType.DAY) "PVGIS-Tagesmittel " else "PVGIS-Soll bis jetzt ") to pvgis.target(r.period, r.dataStart)
+            else -> "" to 0.0
+        }
+        if (refValue > 0) {
+            val ratio = t.pv / refValue
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Label(refLabel + formatKwh(refValue), Modifier.weight(1f))
+                Label(
+                    String.format(Locale.GERMANY, "%.0f %%", ratio * 100),
+                    color = if (ratio >= 1) EnergyColors.gridExport else c.text,
+                )
             }
         }
         Spacer(Modifier.height(12.dp))
+        val targets = if (previous != null) YearCompare.bucketValues(r.buckets, previous.buckets) else pvgis?.bucketTargets(r.period, r.buckets)
+        val targetName = when {
+            previous != null -> "Vorjahr (${previous.period.label})"
+            else -> "PVGIS-Soll"
+        }
         BarChart(
-            targets = pvgis?.bucketTargets(r.period, r.buckets),
+            targets = targets,
             labels = r.buckets.map { it.label },
-            series = listOf(
-                EnergyColors.pv to r.buckets.map { it.totals.pv },
-                EnergyColors.gridImport to r.buckets.map { it.totals.gridImport },
-            ),
+            series = listOf(EnergyColors.pv to r.buckets.map { it.totals.pv }) +
+                shown.map { s -> seriesColor(s) to r.buckets.map { s.value(it.totals) } },
             labelEvery = when (r.period.type) {
                 PeriodType.DAY -> 3
                 PeriodType.MONTH -> 5
                 else -> 1
             },
-            seriesNames = listOf("Erzeugung", "Netzbezug"),
-            targetName = "PVGIS-Soll",
+            seriesNames = listOf("Erzeugung") + shown.map { it.label },
+            targetName = targetName,
             unit = "kWh",
             // Mindest-Skala je Zeitraum: kleine Werte bleiben klein (kein aufgeblähtes Messrauschen)
             minScale = when (r.period.type) {
@@ -153,25 +183,33 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
                 PeriodType.TOTAL -> 500.0
             },
             detailLabels = r.buckets.map { b -> bucketTitle(r.period, b.index) },
+            line = if (vm.showAutarky) r.buckets.map { it.totals.autarky } else null,
+            lineColor = EnergyColors.autarky,
+            lineName = "Autarkie",
         )
         Spacer(Modifier.height(8.dp))
         Legend(
-            listOf("Erzeugung" to EnergyColors.pv, "Netzbezug" to EnergyColors.gridImport) +
-                if (pvgis != null && r.period.type != PeriodType.DAY) listOf("PVGIS" to c.textMuted) else emptyList()
+            listOf("Erzeugung" to EnergyColors.pv) +
+                shown.map { it.label to seriesColor(it) } +
+                (if (vm.showAutarky) listOf("Autarkie" to EnergyColors.autarky) else emptyList()) +
+                when {
+                    previous != null -> listOf("Vorjahr" to c.textMuted)
+                    pvgis != null && r.period.type != PeriodType.DAY -> listOf("PVGIS" to c.textMuted)
+                    else -> emptyList()
+                }
         )
     }
 
     Tile(Modifier.fillMaxWidth()) {
         Label("Energie")
+        Spacer(Modifier.height(2.dp))
+        Label("Antippen: im Diagramm ein-/ausblenden")
         Spacer(Modifier.height(6.dp))
-        ValueRow("Verbrauch", formatKwh(t.consumption), EnergyColors.house)
-        ValueRow("Netzbezug", formatKwh(t.gridImport), EnergyColors.gridImport)
-        ValueRow("Einspeisung", formatKwh(t.gridExport), EnergyColors.gridExport)
-        ValueRow("Speicher geladen", formatKwh(t.batteryCharge), EnergyColors.battery)
-        ValueRow("Speicher entladen", formatKwh(t.batteryDischarge), EnergyColors.battery)
-        ValueRow("Wallbox", formatKwh(t.wallbox), EnergyColors.wallbox)
+        EnergySeries.entries.forEach { s ->
+            ToggleRow(s.label, formatKwh(s.value(t)), seriesColor(s), s in vm.chartSeries) { vm.toggleChartSeries(s) }
+        }
         Hairline()
-        ValueRow("Autarkie", formatPercent(t.autarky), emphasize = true)
+        ToggleRow("Autarkie", formatPercent(t.autarky), EnergyColors.autarky, vm.showAutarky, emphasize = true) { vm.toggleAutarky() }
         ValueRow("Eigenverbrauch", formatPercent(t.selfConsumption), emphasize = true)
     }
 
@@ -181,6 +219,33 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
         onClick = { vm.showRaw("Statistik-Rohdaten", r.rawJson) },
         modifier = Modifier.fillMaxWidth(),
     ) { Text("ROHDATEN", style = MaterialTheme.typography.labelLarge, color = c.accent) }
+}
+
+/** Zeile der Energie-Kachel: gefüllter Punkt = im Diagramm sichtbar, Ring = ausgeblendet. */
+@Composable
+private fun ToggleRow(label: String, value: String, color: Color, selected: Boolean, emphasize: Boolean = false, onClick: () -> Unit) {
+    val c = VoidTheme.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(10.dp).clip(CircleShape)
+                .then(if (selected) Modifier.background(color) else Modifier.border(1.5.dp, color, CircleShape)),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            label,
+            color = if (selected || emphasize) c.text else c.textMuted,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            value,
+            color = c.text,
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Medium),
+        )
+    }
 }
 
 @Composable

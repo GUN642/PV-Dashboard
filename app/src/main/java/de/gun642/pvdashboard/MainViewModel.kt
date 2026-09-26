@@ -31,6 +31,7 @@ import de.gun642.pvdashboard.meters.WaterTariff
 import de.gun642.pvdashboard.senec.cloud.SenecCloud
 import de.gun642.pvdashboard.senec.cloud.WallboxInfo
 import de.gun642.pvdashboard.senec.cloud.WallboxMode
+import de.gun642.pvdashboard.stats.EnergySeries
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.stats.Period
 import de.gun642.pvdashboard.stats.PeriodType
@@ -38,6 +39,7 @@ import de.gun642.pvdashboard.stats.PvgisReference
 import de.gun642.pvdashboard.stats.StatsRepository
 import de.gun642.pvdashboard.stats.StatsResult
 import de.gun642.pvdashboard.stats.Tariff
+import de.gun642.pvdashboard.stats.YearCompare
 import de.gun642.pvdashboard.weather.Forecast
 import de.gun642.pvdashboard.weather.OpenMeteo
 import de.gun642.pvdashboard.weather.Place
@@ -601,6 +603,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     private var statsJob: Job? = null
 
+    /** Derselbe Zeitraum im Vorjahr zum Vergleich (falls vorhanden). */
+    var statsCompare by mutableStateOf<StatsResult?>(null)
+        private set
+
+    /** Zusätzlich zur PV-Erzeugung im Diagramm gezeigte Reihen. */
+    var chartSeries by mutableStateOf(setOf(EnergySeries.GRID_IMPORT))
+        private set
+    var showAutarky by mutableStateOf(true)
+        private set
+
+    fun toggleChartSeries(series: EnergySeries) {
+        chartSeries = if (series in chartSeries) chartSeries - series else chartSeries + series
+    }
+
+    fun toggleAutarky() { showAutarky = !showAutarky }
+
     val tariff: Tariff
         get() = settings.value.let { Tariff(it.provider, it.baseFeePerMonth, it.pricePerKwhCent, it.feedInCent) }
 
@@ -629,6 +647,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 statsError = "Statistik konnte nicht geladen werden: ${e.message ?: e.javaClass.simpleName}"
             } finally {
                 statsLoading = false
+            }
+            // Vorjahr nachladen; fehlt es (vor Inbetriebnahme), bleibt es beim PVGIS-Vergleich.
+            val previous = YearCompare.previousPeriod(requested) ?: return@launch
+            if (statsCompare?.period == previous) return@launch
+            try {
+                val result = stats.load(previous)
+                if (requested == period) statsCompare = result
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Kein Vorjahresvergleich möglich
             }
         }
     }

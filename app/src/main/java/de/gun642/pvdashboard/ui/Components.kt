@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -283,9 +285,10 @@ fun Hairline() {
     Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(VoidTheme.colors.divider))
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Legend(items: List<Pair<String, Color>>) {
-    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.forEach { (label, color) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Dot(color, 7.dp)
@@ -299,8 +302,9 @@ fun Legend(items: List<Pair<String, Color>>) {
 /**
  * Säulendiagramm mit Achsen und Antippen-für-Details.
  *
- * - [series]: bis zu zwei Reihen nebeneinander je Balken, [seriesNames] für die Detailanzeige
+ * - [series]: eine oder mehrere Reihen nebeneinander je Balken, [seriesNames] für die Detailanzeige
  * - [targets]: optionaler Soll-Wert je Balken (z. B. PVGIS/Vorjahr), als Querstrich gezeichnet
+ * - [line]: optionale Linie in Prozent (0..1, z. B. Autarkie) mit eigener Achse rechts; null = Lücke
  * - [minScale]: die Y-Achse reicht mindestens bis hierhin, damit Messrauschen nicht die volle Höhe füllt
  * - [detailLabels]: Überschrift in der Detailanzeige je Balken (sonst [labels])
  */
@@ -316,6 +320,9 @@ fun BarChart(
     unit: String = "",
     minScale: Double = 0.0,
     detailLabels: List<String>? = null,
+    line: List<Double?>? = null,
+    lineColor: Color = VoidTheme.colors.text,
+    lineName: String = "",
 ) {
     val c = VoidTheme.colors
     val scale = ChartScale.of((series.flatMap { it.second } + targets.orEmpty()).maxOrNull() ?: 0.0, minScale)
@@ -323,6 +330,9 @@ fun BarChart(
     val density = LocalDensity.current
     val labelPx = with(density) { 9.sp.toPx() }
     val leftPx = with(density) { 34.dp.toPx() }
+    val rightPx = if (line != null) with(density) { 34.dp.toPx() } else 0f
+    val lineWidth = with(density) { 2.dp.toPx() }
+    val pointRadius = with(density) { 3.dp.toPx() }
     val bottomPx = with(density) { 16.dp.toPx() }
     val topPx = with(density) { 12.dp.toPx() }
     val muted = c.textMuted
@@ -334,17 +344,17 @@ fun BarChart(
             Modifier
                 .fillMaxWidth()
                 .height(190.dp)
-                .pointerInput(labels.size) {
+                .pointerInput(labels.size, rightPx) {
                     detectTapGestures { pos ->
                         val n = labels.size
-                        if (n == 0 || pos.x < leftPx) return@detectTapGestures
-                        val index = ((pos.x - leftPx) / ((size.width - leftPx) / n)).toInt().coerceIn(0, n - 1)
+                        if (n == 0 || pos.x < leftPx || pos.x > size.width - rightPx) return@detectTapGestures
+                        val index = ((pos.x - leftPx) / ((size.width - leftPx - rightPx) / n)).toInt().coerceIn(0, n - 1)
                         selected = if (selected == index) null else index
                     }
                 },
         ) {
             val n = labels.size.coerceAtLeast(1)
-            val plotW = size.width - leftPx
+            val plotW = size.width - leftPx - rightPx
             val plotH = size.height - bottomPx - topPx
             val slot = plotW / n
             val groupWidth = slot * 0.72f
@@ -390,6 +400,26 @@ fun BarChart(
                 drawRoundRect(muted, Offset(x, y(t) - 1.5f), Size(groupWidth + 4f, 3f), CornerRadius(1.5f, 1.5f))
             }
 
+            // Prozent-Linie mit Achse rechts (0 % unten, 100 % oben)
+            if (line != null) {
+                fun ly(f: Double) = (topPx + plotH * (1 - f.coerceIn(0.0, 1.0))).toFloat()
+                paint.textAlign = android.graphics.Paint.Align.LEFT
+                paint.color = lineColor.toArgb()
+                listOf(0.0, 0.5, 1.0).forEach { f ->
+                    native.drawText(String.format(Locale.GERMANY, "%.0f%%", f * 100), leftPx + plotW + 6f, ly(f) + labelPx / 3, paint)
+                }
+                paint.color = muted.toArgb()
+                val points = line.mapIndexed { i, f -> f?.let { Offset(leftPx + slot * i + slot / 2, ly(it)) } }
+                points.zipWithNext().forEach { (a, b) ->
+                    if (a != null && b != null) drawLine(lineColor.copy(alpha = 0.8f), a, b, strokeWidth = lineWidth)
+                }
+                points.forEachIndexed { i, p ->
+                    if (p == null) return@forEachIndexed
+                    val r = if (selected == i) pointRadius * 1.6f else pointRadius
+                    drawCircle(lineColor, r, p)
+                }
+            }
+
             // X-Achse: Beschriftung unter den Balken
             paint.textAlign = android.graphics.Paint.Align.CENTER
             labels.forEachIndexed { i, l ->
@@ -422,6 +452,14 @@ fun BarChart(
                         Spacer(Modifier.width(8.dp))
                         Text(targetName, color = c.textMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Text(formatChartValue(t, unit), color = c.text, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                line?.getOrNull(index)?.let { f ->
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Dot(lineColor, 7.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(lineName, color = c.textMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(formatPercent(f), color = c.text, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
