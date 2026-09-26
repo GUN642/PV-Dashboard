@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.gun642.pvdashboard.data.AppSettings
+import de.gun642.pvdashboard.data.Backup
 import de.gun642.pvdashboard.data.DataSource
 import de.gun642.pvdashboard.data.Release
 import de.gun642.pvdashboard.data.SettingsRepository
@@ -391,6 +392,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Auffällig hoher Wasserverbrauch seit der letzten Ablesung (Leck?). */
     fun waterWarning(): UsageWarning? =
         Consumption.unusualIncrease(readings(MeterType.WATER), settings.value.leakWarnPercent, minExcessPerDay = 0.03)
+
+    // ---------- Datensicherung ----------
+    private val backupInfo = app.getSharedPreferences("backup_info", android.content.Context.MODE_PRIVATE)
+    var lastBackup by mutableStateOf(backupInfo.getString("last_backup", null))
+        private set
+
+    /** Vorschlag für den Dateinamen der Sicherung. */
+    fun backupFileName(): String = "VOID-Home-Backup-${java.time.LocalDate.now()}.json"
+
+    fun exportBackup(uri: android.net.Uri) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val json = Backup.create(getApplication<Application>())
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { it.write(json.toByteArray()) }
+                        ?: throw java.io.IOException("Datei nicht beschreibbar")
+                }
+                val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+                backupInfo.edit().putString("last_backup", stamp).apply()
+                lastBackup = stamp
+                message("Sicherung gespeichert")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Sichern fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
+    fun restoreBackup(uri: android.net.Uri) {
+        viewModelScope.launch {
+            try {
+                val summary = withContext(Dispatchers.IO) {
+                    val text = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                        ?: throw java.io.IOException("Datei nicht lesbar")
+                    Backup.restore(getApplication<Application>(), text)
+                }
+                // Alles neu einlesen
+                repository.reload()
+                meterData = meterStore.load()
+                contracts = contractStore.load()
+                statsResult = null
+                forecast = null
+                BackgroundChecks.apply(getApplication<Application>(), settings.value)
+                LiveWidget.updateAll(getApplication<Application>())
+                message("Wiederhergestellt: ${summary.readings} Zählerstände, ${summary.contracts} Verträge, Einstellungen. Auf einem neuen Handy das SENEC-Passwort neu eingeben.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Wiederherstellen fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
 
     // ---------- Verträge ----------
     private val contractStore = ContractStore(app)

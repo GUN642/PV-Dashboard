@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-Backup ab Android 12 (Google-Konto und Gerätewechsel): alles außer Passwort und SENEC-Anmeldung -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="secrets.xml" />
+        <exclude domain="sharedpref" path="senec_cloud.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="secrets.xml" />
+        <exclude domain="sharedpref" path="senec_cloud.xml" />
+    </device-transfer>
+</data-extraction-rules>

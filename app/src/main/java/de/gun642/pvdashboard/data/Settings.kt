@@ -111,10 +111,26 @@ data class AppSettings(
 }
 
 class SettingsRepository(context: Context) {
-    private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    /** Eigene Datei für das Passwort – wird von Android-Backup und Sicherungsdatei ausgenommen. */
+    private val secretPrefs = context.getSharedPreferences(SECRET_PREFS, Context.MODE_PRIVATE)
     private val secrets = SecretStore(context)
+
+    init {
+        // Ältere Versionen hatten das Passwort in den normalen Einstellungen: umziehen.
+        prefs.getString("senec_password", null)?.let { encrypted ->
+            secretPrefs.edit().putString("senec_password", encrypted).commit()
+            prefs.edit().remove("senec_password").commit()
+        }
+    }
+
     private val _settings = MutableStateFlow(load())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
+
+    /** Nach dem Wiederherstellen einer Sicherung neu einlesen. */
+    fun reload() {
+        _settings.value = load()
+    }
 
     fun update(transform: AppSettings.() -> AppSettings) {
         val next = _settings.value.transform()
@@ -136,7 +152,7 @@ class SettingsRepository(context: Context) {
             intervalSeconds = prefs.getInt("interval_seconds", d.intervalSeconds),
             wallboxIndex = prefs.getInt("wallbox_index", d.wallboxIndex),
             senecEmail = prefs.getString("senec_email", d.senecEmail) ?: d.senecEmail,
-            senecPassword = prefs.getString("senec_password", null)?.let { secrets.decrypt(it) } ?: d.senecPassword,
+            senecPassword = secretPrefs.getString("senec_password", null)?.let { secrets.decrypt(it) } ?: d.senecPassword,
             dataSource = enumOf("data_source", d.dataSource),
             provider = prefs.getString("provider", d.provider) ?: d.provider,
             baseFeePerMonth = double("base_fee") ?: d.baseFeePerMonth,
@@ -183,7 +199,9 @@ class SettingsRepository(context: Context) {
         e.putInt("interval_seconds", s.intervalSeconds.coerceIn(2, 300))
         e.putInt("wallbox_index", s.wallboxIndex.coerceIn(0, 3))
         e.putString("senec_email", s.senecEmail.trim())
-        if (s.senecPassword.isEmpty()) e.remove("senec_password") else e.putString("senec_password", secrets.encrypt(s.senecPassword))
+        secretPrefs.edit().apply {
+            if (s.senecPassword.isEmpty()) remove("senec_password") else putString("senec_password", secrets.encrypt(s.senecPassword))
+        }.apply()
         e.putString("data_source", s.dataSource.name)
         e.putString("provider", s.provider)
         putDouble("base_fee", s.baseFeePerMonth)
@@ -216,5 +234,10 @@ class SettingsRepository(context: Context) {
         e.putBoolean("widget_dark", s.widgetDark)
         e.putInt("widget_opacity", s.widgetOpacity.coerceIn(0, 100))
         e.apply()
+    }
+
+    companion object {
+        const val PREFS = "settings"
+        const val SECRET_PREFS = "secrets"
     }
 }

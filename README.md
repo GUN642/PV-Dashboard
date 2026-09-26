@@ -36,6 +36,12 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 
 Der Cloud-Zugriff nutzt dieselbe Schnittstelle wie die offizielle SENEC-App (nach dem Vorbild der Home-Assistant-Integration [marq24/ha-senec-v3](https://github.com/marq24/ha-senec-v3)). Sie ist nicht offiziell dokumentiert und kann sich ändern. Zwei-Faktor-Anmeldung wird noch nicht unterstützt.
 
+## Datensicherung
+
+- **Sicherungsdatei** (Einstellungen → Datensicherung): Zählerstände, Verträge und alle Einstellungen als JSON-Datei an einen frei wählbaren Ort (Google Drive, Nextcloud, Download-Ordner …); „Wiederherstellen“ spielt sie auf einem neuen Handy wieder ein.
+- **Android-Backup**: zusätzlich sichert Android die App-Daten ins Google-Konto bzw. überträgt sie beim Gerätewechsel.
+- In beiden Fällen **ohne** SENEC-Passwort und Anmeldedaten (eigene Datei `secrets.xml`, ausgenommen). PV-Statistiken liegen in der SENEC-Cloud.
+
 ## Automatischer Build
 
 `.github/workflows/android.yml` baut und testet bei jedem Push. Pushes auf `main` werden als Release mit Changelog aus den Commit-Nachrichten veröffentlicht; die Versionsnummer ist `0.2.<Build-Nummer>`.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android-Backup bis Android 11: alles außer Passwort und SENEC-Anmeldung -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="secrets.xml" />
+    <exclude domain="sharedpref" path="senec_cloud.xml" />
+</full-backup-content>

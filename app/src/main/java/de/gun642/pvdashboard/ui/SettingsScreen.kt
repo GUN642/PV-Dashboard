@@ -1,5 +1,8 @@
 package de.gun642.pvdashboard.ui
 
+import androidx.compose.material3.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -292,6 +295,10 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
                 ),
             )
 
+            // ---------- Datensicherung ----------
+            Group("Datensicherung")
+            BackupSection(vm)
+
             // ---------- Updates ----------
             Group("Updates")
             UpdateSection(vm, s)
@@ -407,5 +414,58 @@ private fun ThemeTile(mode: ThemeMode, selected: Boolean, onClick: () -> Unit) {
         }
         Spacer(Modifier.height(4.dp))
         Label(mode.label, color = if (selected) c.text else c.textMuted)
+    }
+}
+
+@Composable
+private fun BackupSection(vm: MainViewModel) {
+    val c = VoidTheme.colors
+    var pendingRestore by remember { mutableStateOf<android.net.Uri?>(null) }
+    val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) vm.exportBackup(uri)
+    }
+    val opener = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) pendingRestore = uri
+    }
+
+    Hint(
+        "Sichert Zählerstände, Verträge und alle Einstellungen in eine Datei – z. B. nach Google Drive, Nextcloud oder in den Download-Ordner. " +
+            "Das SENEC-Passwort ist nicht enthalten. PV-Statistiken liegen ohnehin in der SENEC-Cloud."
+    )
+    Spacer(Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Pill("Sichern", selected = true, onClick = { saver.launch(vm.backupFileName()) })
+        Pill("Wiederherstellen", selected = false, onClick = { opener.launch(arrayOf("application/json", "text/*", "*/*")) })
+    }
+    Spacer(Modifier.height(8.dp))
+    Label(vm.lastBackup?.let { "Letzte Sicherung: $it" } ?: "Noch keine Sicherung erstellt", color = if (vm.lastBackup == null) c.accent else c.textMuted)
+    Spacer(Modifier.height(10.dp))
+    Hint(
+        "Zusätzlich sichert Android die App-Daten automatisch in dein Google-Konto (wenn Google-Backup auf dem Handy aktiv ist) " +
+            "und überträgt sie beim Handywechsel – ebenfalls ohne Passwort."
+    )
+
+    pendingRestore?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingRestore = null },
+            containerColor = c.surface,
+            title = { Text("Sicherung wiederherstellen", color = c.text) },
+            text = {
+                Text(
+                    "Alle aktuellen Zählerstände, Verträge und Einstellungen werden durch die Sicherung ersetzt. Fortfahren?",
+                    color = c.textMuted,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { pendingRestore = null; vm.restoreBackup(uri) }) {
+                    Text("WIEDERHERSTELLEN", style = MaterialTheme.typography.labelLarge, color = c.accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRestore = null }) {
+                    Text("ABBRECHEN", style = MaterialTheme.typography.labelLarge, color = c.textMuted)
+                }
+            },
+        )
     }
 }
