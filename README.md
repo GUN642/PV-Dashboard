@@ -10,7 +10,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 
 ## Funktionen
 
-- **Live**: PV-Erzeugung, Hausverbrauch, Netzbezug/Einspeisung, Speicher, Ladestand, Wallbox, Autarkie, Eigenverbrauch, Tageswerte, 30-Minuten-Verlauf
+- **Live**: PV-Erzeugung, Hausverbrauch, Netzbezug/Einspeisung, Speicher, Ladestand, Wallbox, Autarkie, Eigenverbrauch, Tageswerte, 30-Minuten-Verlauf; Ringdiagramm, wohin der PV-Strom gerade fließt (Haus, Akku, Wallbox, Einspeisung)
   - im Heim-WLAN direkt vom Speicher (`lala.cgi`), unterwegs automatisch über die SENEC-Cloud
 - **Statistik**: Tag, Monat, Jahr, Gesamt – Erzeugung, Verbrauch, Netz, Speicher, Wallbox als Diagramm und Tabelle
 - **Kosten**: Stromkosten, Grundgebühr, Einspeisevergütung und Ersparnis durch PV nach eigenem Tarif

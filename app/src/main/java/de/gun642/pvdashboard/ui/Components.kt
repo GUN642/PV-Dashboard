@@ -441,6 +441,7 @@ fun formatPlain(v: Double): String =
 /** Leistung: bis 999 W in W, darüber in kW. Liefert Wert und Einheit getrennt. */
 fun powerParts(watts: Double?): Pair<String, String> = when {
     watts == null -> "–" to "W"
+    kotlin.math.abs(watts) < 0.5 -> "0" to "W" // kein „-0 W“ bei kleinen negativen Messwerten
     kotlin.math.abs(watts) >= 1000 -> String.format(de, "%.2f", watts / 1000) to "kW"
     else -> String.format(de, "%.0f", watts) to "W"
 }

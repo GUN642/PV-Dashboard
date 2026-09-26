@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +34,7 @@ import de.gun642.pvdashboard.senec.SenecSnapshot
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.ui.theme.EnergyColors
 import de.gun642.pvdashboard.ui.theme.VoidTheme
+import de.gun642.pvdashboard.widget.PvShares
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
@@ -101,16 +103,26 @@ private fun ErrorTile(message: String) {
 
 @Composable
 private fun Hero(s: SenecSnapshot) {
+    val shares = PvShares.compute(s.pvW, s.gridW, s.batteryW, s.wallboxW)
     Tile(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Dot(EnergyColors.pv)
-            Spacer(Modifier.width(8.dp))
-            Label("PV-Erzeugung")
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Dot(EnergyColors.pv)
+                    Spacer(Modifier.width(8.dp))
+                    Label("PV-Erzeugung")
+                }
+                val (value, unit) = powerParts(s.pvW?.coerceAtLeast(0.0))
+                BigValue(value, unit, size = 60)
+                s.houseW?.let { house ->
+                    Label("Hausverbrauch ${formatPower(house)}")
+                }
+            }
+            PvDonut(shares, Modifier.size(118.dp))
         }
-        val (value, unit) = powerParts(s.pvW)
-        BigValue(value, unit, size = 60)
-        s.houseW?.let { house ->
-            Label("Hausverbrauch ${formatPower(house)}")
+        if (shares != null) {
+            Spacer(Modifier.height(16.dp))
+            PvShareLegend(shares)
         }
     }
 }
