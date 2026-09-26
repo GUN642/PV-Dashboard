@@ -51,3 +51,27 @@ class ContractsTest {
         assertEquals(list, ContractStore.fromJson(ContractStore.toJson(list)))
     }
 }
+
+class ContractSortTest {
+    private val today = LocalDate.of(2026, 9, 26)
+    private val kfz = Contract(name = "Kfz", amount = 480.0, interval = BillingInterval.YEARLY, termEnd = LocalDate.of(2027, 1, 1), noticeValue = 1)
+    private val internet = Contract(name = "Internet", amount = 45.0, termEnd = LocalDate.of(2026, 12, 31), noticeValue = 1)
+    private val abo = Contract(name = "abo", amount = 9.99)
+
+    @Test
+    fun sortsByName() {
+        assertEquals(listOf("abo", "Internet", "Kfz"), ContractSort.NAME.apply(listOf(kfz, internet, abo), today).map { it.name })
+    }
+
+    @Test
+    fun sortsByMonthlyAmount() {
+        // Kfz 480 €/Jahr = 40 €/Monat, Internet 45 €/Monat
+        assertEquals(listOf("Internet", "Kfz", "abo"), ContractSort.AMOUNT_DESC.apply(listOf(kfz, abo, internet), today).map { it.name })
+        assertEquals(listOf("abo", "Kfz", "Internet"), ContractSort.AMOUNT_ASC.apply(listOf(internet, kfz, abo), today).map { it.name })
+    }
+
+    @Test
+    fun sortsByDeadlineWithUnlimitedLast() {
+        assertEquals(listOf("Internet", "Kfz", "abo"), ContractSort.DEADLINE.apply(listOf(abo, kfz, internet), today).map { it.name })
+    }
+}

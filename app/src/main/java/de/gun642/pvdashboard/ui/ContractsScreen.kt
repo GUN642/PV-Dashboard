@@ -34,6 +34,9 @@ import de.gun642.pvdashboard.MainViewModel
 import de.gun642.pvdashboard.contracts.BillingInterval
 import de.gun642.pvdashboard.contracts.Contract
 import de.gun642.pvdashboard.contracts.ContractCategory
+import de.gun642.pvdashboard.contracts.ContractSort
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.collectAsState
 import de.gun642.pvdashboard.contracts.NoticeUnit
 import de.gun642.pvdashboard.notify.Notifier
 import de.gun642.pvdashboard.ui.theme.EnergyColors
@@ -61,7 +64,8 @@ fun rememberNotificationPermissionRequest(): () -> Unit {
 fun ContractsSection(vm: MainViewModel, onEdit: (Contract?) -> Unit) {
     val c = VoidTheme.colors
     val today = LocalDate.now()
-    val contracts = vm.contracts.sortedWith(compareBy<Contract> { it.nextDeadline(today) ?: LocalDate.MAX }.thenBy { it.name.lowercase() })
+    val sort = vm.settings.collectAsState().value.contractSort
+    val contracts = sort.apply(vm.contracts, today)
 
     if (contracts.isEmpty()) {
         Tile(Modifier.fillMaxWidth()) {
@@ -87,6 +91,11 @@ fun ContractsSection(vm: MainViewModel, onEdit: (Contract?) -> Unit) {
                 }
         }
 
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ContractSort.entries.forEach { option ->
+                Pill(option.label, sort == option, { vm.updateSettings { copy(contractSort = option) } })
+            }
+        }
         contracts.forEach { contract -> ContractTile(contract, today) { onEdit(contract) } }
     }
 }

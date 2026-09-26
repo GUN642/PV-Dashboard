@@ -109,6 +109,24 @@ data class Contract(
     }
 }
 
+enum class ContractSort(val label: String) {
+    DEADLINE("Frist"),
+    NAME("Name"),
+    AMOUNT_DESC("Betrag ↓"),
+    AMOUNT_ASC("Betrag ↑");
+
+    /** Beim Betrag zählen die Kosten pro Monat, damit jährliche und monatliche Verträge vergleichbar sind. */
+    fun apply(list: List<Contract>, today: LocalDate = LocalDate.now()): List<Contract> {
+        val byName = compareBy<Contract> { it.name.lowercase() }
+        return when (this) {
+            DEADLINE -> list.sortedWith(compareBy<Contract> { it.nextDeadline(today) ?: LocalDate.MAX }.then(byName))
+            NAME -> list.sortedWith(byName)
+            AMOUNT_DESC -> list.sortedWith(compareByDescending<Contract> { it.monthlyCost }.then(byName))
+            AMOUNT_ASC -> list.sortedWith(compareBy<Contract> { it.monthlyCost }.then(byName))
+        }
+    }
+}
+
 /** Verträge als JSON im App-Speicher. */
 class ContractStore(context: Context) {
     private val file = File(context.filesDir, "contracts.json")
