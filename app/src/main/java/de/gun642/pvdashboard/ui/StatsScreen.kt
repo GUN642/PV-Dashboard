@@ -146,7 +146,8 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
             unit = "kWh",
             // Mindest-Skala je Zeitraum: kleine Werte bleiben klein (kein aufgeblähtes Messrauschen)
             minScale = when (r.period.type) {
-                PeriodType.DAY -> 0.5
+                // Tag: fest 0–10 (kWh je Stunde = mittlere Leistung in kW), bei mehr automatisch erweitert
+                PeriodType.DAY -> 10.0
                 PeriodType.MONTH -> 5.0
                 PeriodType.YEAR -> 50.0
                 PeriodType.TOTAL -> 500.0
