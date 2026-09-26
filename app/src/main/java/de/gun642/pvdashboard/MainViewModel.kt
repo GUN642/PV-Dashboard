@@ -20,6 +20,7 @@ import de.gun642.pvdashboard.meters.Consumption
 import de.gun642.pvdashboard.meters.MeterCsv
 import de.gun642.pvdashboard.meters.UsageWarning
 import de.gun642.pvdashboard.notify.BackgroundChecks
+import de.gun642.pvdashboard.notify.SurplusCheck
 import de.gun642.pvdashboard.meters.MeterReading
 import de.gun642.pvdashboard.meters.MeterStore
 import de.gun642.pvdashboard.meters.MeterType
@@ -392,6 +393,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Auffällig hoher Wasserverbrauch seit der letzten Ablesung (Leck?). */
     fun waterWarning(): UsageWarning? =
         Consumption.unusualIncrease(readings(MeterType.WATER), settings.value.leakWarnPercent, minExcessPerDay = 0.03)
+
+    // ---------- Überschuss-Hinweis ----------
+    var lastSurplusCheck by mutableStateOf(SurplusCheck.lastCheck(app))
+        private set
+    var surplusChecking by mutableStateOf(false)
+        private set
+
+    /** „Jetzt prüfen“: sofort abfragen und Ergebnis mit Begründung anzeigen. */
+    fun runSurplusCheckNow() {
+        if (surplusChecking) return
+        viewModelScope.launch {
+            surplusChecking = true
+            val text = withContext(Dispatchers.IO) { SurplusCheck.run(getApplication<Application>(), manual = true) }
+            lastSurplusCheck = text
+            surplusChecking = false
+            message(text.substringAfter(": "))
+        }
+    }
+
+    /** Ist die App von der Akku-Optimierung ausgenommen? (sonst verschiebt Android Hintergrundprüfungen stark) */
+    fun ignoresBatteryOptimization(): Boolean {
+        val pm = getApplication<Application>().getSystemService(android.os.PowerManager::class.java)
+        return pm?.isIgnoringBatteryOptimizations(getApplication<Application>().packageName) ?: true
+    }
+
+    fun refreshSurplusStatus() {
+        lastSurplusCheck = SurplusCheck.lastCheck(getApplication<Application>())
+    }
 
     // ---------- Datensicherung ----------
     private val backupInfo = app.getSharedPreferences("backup_info", android.content.Context.MODE_PRIVATE)

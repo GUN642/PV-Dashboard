@@ -251,7 +251,35 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
                     NumberField(s.surplusExportW.toDouble(), { v -> vm.updateSettings { copy(surplusExportW = v.toInt().coerceIn(0, 30_000)) } }, "Einspeisung ab", "W", Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(6.dp))
-                Hint("Geprüft wird nur zwischen 9 und 18 Uhr und höchstens einmal pro Tag benachrichtigt. Eine kurze Abfrage pro Intervall – kaum Akkuverbrauch.")
+                Hint("Einspeisung 0 W = nur der Akkustand zählt. Geprüft wird zwischen 9 und 18 Uhr, höchstens eine Nachricht pro Tag – eine kurze Abfrage pro Intervall, kaum Akkuverbrauch.")
+                Spacer(Modifier.height(10.dp))
+                LaunchedEffect(Unit) { vm.refreshSurplusStatus() }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("Jetzt prüfen", selected = true, onClick = { requestNotifications(); vm.runSurplusCheckNow() })
+                    if (vm.surplusChecking) CircularProgressIndicator(Modifier.size(20.dp), color = c.accent, strokeWidth = 2.dp)
+                }
+                Spacer(Modifier.height(6.dp))
+                Label(vm.lastSurplusCheck?.let { "Letzte Prüfung $it" } ?: "Noch keine Prüfung gelaufen")
+                val context = androidx.compose.ui.platform.LocalContext.current
+                if (!vm.ignoresBatteryOptimization()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Android verschiebt Hintergrundprüfungen bei aktiver Akku-Optimierung oft um Stunden. Für zuverlässige Hinweise die App davon ausnehmen.",
+                        color = c.accent, style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Pill("Akku-Optimierung ausschalten", selected = false, onClick = {
+                        val direct = android.content.Intent(
+                            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            android.net.Uri.parse("package:${context.packageName}"),
+                        )
+                        try {
+                            context.startActivity(direct)
+                        } catch (e: Exception) {
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                        }
+                    })
+                }
             }
             Toggle(
                 "Erinnerung an Kündigungsfristen",

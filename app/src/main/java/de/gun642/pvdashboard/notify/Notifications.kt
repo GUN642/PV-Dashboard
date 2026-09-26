@@ -104,37 +104,81 @@ object BackgroundChecks {
     }
 }
 
+/** Ergebnis der Überschuss-Prüfung mit Begründung (für die Anzeige in den Einstellungen). */
+data class SurplusDecision(val notify: Boolean, val reason: String)
+
+object SurplusCheck {
+    private const val STATE = "notify_state"
+
+    /**
+     * Akku ≥ Schwelle und – falls eine Einspeise-Schwelle > 0 gesetzt ist – Einspeisung ≥ Schwelle.
+     * Bei 0 W wird nur der Akkustand geprüft.
+     */
+    fun decide(soc: Double?, gridW: Double?, socThreshold: Int, exportThreshold: Int): SurplusDecision {
+        if (soc == null) return SurplusDecision(false, "Kein Akkustand gemeldet")
+        val export = -(gridW ?: 0.0)
+        val socOk = soc >= socThreshold
+        val exportOk = exportThreshold <= 0 || export >= exportThreshold
+        val socText = String.format(Locale.GERMANY, "Akku %.0f %% %s %d %%", soc, if (socOk) "≥" else "<", socThreshold)
+        val exportText = if (exportThreshold <= 0) "Einspeisung egal"
+        else "Einspeisung ${formatPower(export.coerceAtLeast(0.0))} ${if (exportOk) "≥" else "<"} ${formatPower(exportThreshold.toDouble())}"
+        return SurplusDecision(socOk && exportOk, "$socText · $exportText")
+    }
+
+    /**
+     * Führt die Prüfung aus. [manual] = über „Jetzt prüfen“: ohne Zeitfenster und Tageslimit.
+     * @return Text für die Anzeige
+     */
+    suspend fun run(context: Context, manual: Boolean): String {
+        val s = SettingsRepository(context).settings.value
+        val state = context.getSharedPreferences(STATE, Context.MODE_PRIVATE)
+        val now = LocalTime.now()
+        val today = LocalDate.now().toString()
+        val result = when {
+            !manual && !s.surplusNotify -> return "Hinweis ist ausgeschaltet"
+            !manual && (now.hour < 9 || now.hour >= 18) -> "Außerhalb von 9–18 Uhr – nicht geprüft"
+            !manual && state.getString("surplus_date", null) == today -> "Heute schon benachrichtigt"
+            else -> try {
+                val snapshot = LiveWidget.fetchAndCache(context).also { LiveWidget.updateAll(context) }
+                val decision = decide(snapshot.batterySoc, snapshot.gridW, s.surplusSocPercent, s.surplusExportW)
+                if (decision.notify) {
+                    val export = -(snapshot.gridW ?: 0.0)
+                    Notifier.show(
+                        context, 1001, Notifier.CHANNEL_HINTS,
+                        "Akku voll – Überschuss nutzen",
+                        String.format(Locale.GERMANY, "Akku %.0f %%", snapshot.batterySoc ?: 0.0) +
+                            (if (export > 50) ", ${formatPower(export)} werden eingespeist" else "") +
+                            ". Jetzt Waschmaschine, Spülmaschine oder Wallbox nutzen.",
+                        tab = "LIVE",
+                    )
+                    if (!manual) state.edit().putString("surplus_date", today).apply()
+                    "Benachrichtigt – ${decision.reason}" +
+                        if (!Notifier.permitted(context)) " (Benachrichtigungen sind für die App aber ausgeschaltet!)" else ""
+                } else {
+                    "Keine Nachricht – ${decision.reason}"
+                }
+            } catch (e: Exception) {
+                "Abruf fehlgeschlagen: ${e.message ?: e.javaClass.simpleName}"
+            }
+        }
+        val stamp = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM. HH:mm"))
+        val text = "$stamp${if (manual) " (manuell)" else ""}: $result"
+        state.edit().putString("last_surplus_check", text).apply()
+        return text
+    }
+
+    fun lastCheck(context: Context): String? =
+        context.getSharedPreferences(STATE, Context.MODE_PRIVATE).getString("last_surplus_check", null)
+}
+
 /**
- * Prüft in großen Abständen, ob der Akku voll ist und Strom eingespeist wird.
+ * Prüft in großen Abständen, ob der Akku voll ist (und ggf. Strom eingespeist wird).
  * Nur tagsüber (9–18 Uhr) und höchstens einmal pro Tag eine Benachrichtigung.
  */
 class SurplusWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val s = SettingsRepository(applicationContext).settings.value
-        if (!s.surplusNotify) return Result.success()
-        val now = LocalTime.now()
-        if (now.hour < 9 || now.hour >= 18) return Result.success()
-        val state = applicationContext.getSharedPreferences("notify_state", Context.MODE_PRIVATE)
-        val today = LocalDate.now().toString()
-        if (state.getString("surplus_date", null) == today) return Result.success()
-
-        val snapshot = try {
-            LiveWidget.fetchAndCache(applicationContext).also { LiveWidget.updateAll(applicationContext) }
-        } catch (e: Exception) {
-            return Result.success() // beim nächsten Intervall erneut – keine Wiederholungsschleife
-        }
-        val soc = snapshot.batterySoc ?: return Result.success()
-        val export = -(snapshot.gridW ?: 0.0)
-        if (soc >= s.surplusSocPercent && export >= s.surplusExportW) {
-            Notifier.show(
-                applicationContext, 1001, Notifier.CHANNEL_HINTS,
-                "Akku voll – Überschuss nutzen",
-                String.format(Locale.GERMANY, "Akku %.0f %%, %s werden eingespeist. Jetzt Waschmaschine, Spülmaschine oder Wallbox nutzen.", soc, formatPower(export)),
-                tab = "LIVE",
-            )
-            state.edit().putString("surplus_date", today).apply()
-        }
-        return Result.success()
+        SurplusCheck.run(applicationContext, manual = false)
+        return Result.success() // auch bei Fehlern: nächster Versuch im nächsten Intervall
     }
 }
 
