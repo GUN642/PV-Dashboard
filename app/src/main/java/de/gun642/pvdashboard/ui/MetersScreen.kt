@@ -215,6 +215,11 @@ private fun ChartTile(vm: MainViewModel, type: MeterType, readings: List<MeterRe
                 labels = (1..12).map { java.time.Month.of(it).getDisplayName(TextStyle.SHORT, de).take(3) },
                 series = listOf(color to values),
                 targets = previous.takeIf { p -> p.any { it > 0 } },
+                seriesNames = listOf(year.toString()),
+                targetName = (year - 1).toString(),
+                unit = type.unit,
+                minScale = if (type == MeterType.POWER) 10.0 else 1.0,
+                detailLabels = (1..12).map { YearMonth.of(year, it).format(DateTimeFormatter.ofPattern("MMMM yyyy", de)) },
             )
             Spacer(Modifier.height(8.dp))
             Legend(listOf(year.toString() to color) + if (previous.any { it > 0 }) listOf("${year - 1}" to c.textMuted) else emptyList())
@@ -225,7 +230,13 @@ private fun ChartTile(vm: MainViewModel, type: MeterType, readings: List<MeterRe
             Label("Alle Jahre")
             BigValue(formatAmount(total, type), type.unit, size = 44)
             Spacer(Modifier.height(10.dp))
-            BarChart(labels = yearly.keys.map { it.toString() }, series = listOf(color to yearly.values.toList()))
+            BarChart(
+                labels = yearly.keys.map { it.toString() },
+                series = listOf(color to yearly.values.toList()),
+                seriesNames = listOf("Verbrauch"),
+                unit = type.unit,
+                minScale = if (type == MeterType.POWER) 100.0 else 10.0,
+            )
             Spacer(Modifier.height(8.dp))
             yearly.forEach { (y, v) ->
                 val yearMonths = monthly.filterKeys { it.year == y }.values.count { it > 0 }.toDouble()

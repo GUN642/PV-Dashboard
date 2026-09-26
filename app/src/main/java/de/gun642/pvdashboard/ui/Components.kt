@@ -33,6 +33,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -291,8 +297,12 @@ fun Legend(items: List<Pair<String, Color>>) {
 }
 
 /**
- * Säulendiagramm mit bis zu zwei Reihen nebeneinander je Balken.
- * [targets]: optionaler Soll-Wert je Balken (z. B. PVGIS), als Querstrich gezeichnet.
+ * Säulendiagramm mit Achsen und Antippen-für-Details.
+ *
+ * - [series]: bis zu zwei Reihen nebeneinander je Balken, [seriesNames] für die Detailanzeige
+ * - [targets]: optionaler Soll-Wert je Balken (z. B. PVGIS/Vorjahr), als Querstrich gezeichnet
+ * - [minScale]: die Y-Achse reicht mindestens bis hierhin, damit Messrauschen nicht die volle Höhe füllt
+ * - [detailLabels]: Überschrift in der Detailanzeige je Balken (sonst [labels])
  */
 @Composable
 fun BarChart(
@@ -301,45 +311,122 @@ fun BarChart(
     modifier: Modifier = Modifier,
     labelEvery: Int = 1,
     targets: List<Double>? = null,
+    seriesNames: List<String> = emptyList(),
+    targetName: String = "Soll",
+    unit: String = "",
+    minScale: Double = 0.0,
+    detailLabels: List<String>? = null,
 ) {
     val c = VoidTheme.colors
-    val max = (series.flatMap { it.second } + targets.orEmpty()).maxOrNull()?.takeIf { it > 0 } ?: 1.0
+    val scale = ChartScale.of((series.flatMap { it.second } + targets.orEmpty()).maxOrNull() ?: 0.0, minScale)
+    var selected by remember(labels, series.map { it.second }) { mutableStateOf<Int?>(null) }
+    val density = LocalDensity.current
+    val labelPx = with(density) { 9.sp.toPx() }
+    val leftPx = with(density) { 34.dp.toPx() }
+    val bottomPx = with(density) { 16.dp.toPx() }
+    val topPx = with(density) { 12.dp.toPx() }
+    val muted = c.textMuted
+    val grid = c.divider
+    val highlight = c.text.copy(alpha = 0.07f)
+
     Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(160.dp)) {
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(190.dp)
+                .pointerInput(labels.size) {
+                    detectTapGestures { pos ->
+                        val n = labels.size
+                        if (n == 0 || pos.x < leftPx) return@detectTapGestures
+                        val index = ((pos.x - leftPx) / ((size.width - leftPx) / n)).toInt().coerceIn(0, n - 1)
+                        selected = if (selected == index) null else index
+                    }
+                },
+        ) {
             val n = labels.size.coerceAtLeast(1)
-            val slot = size.width / n
+            val plotW = size.width - leftPx
+            val plotH = size.height - bottomPx - topPx
+            val slot = plotW / n
             val groupWidth = slot * 0.72f
             val barWidth = groupWidth / series.size.coerceAtLeast(1)
             val radius = CornerRadius(barWidth / 2.5f, barWidth / 2.5f)
-            // Grundlinie
-            drawRect(c.divider, Offset(0f, size.height - 1f), Size(size.width, 1f))
+            fun y(v: Double) = (topPx + plotH * (1 - v / scale.max)).toFloat()
+
+            val paint = android.graphics.Paint().apply {
+                isAntiAlias = true
+                color = muted.toArgb()
+                textSize = labelPx
+                typeface = android.graphics.Typeface.MONOSPACE
+            }
+            val native = drawContext.canvas.nativeCanvas
+
+            // Y-Achse: Gitterlinien mit Beschriftung, Einheit oben
+            paint.textAlign = android.graphics.Paint.Align.RIGHT
+            scale.ticks.forEach { t ->
+                val yy = y(t)
+                drawRect(grid, Offset(leftPx, yy - 0.5f), Size(plotW, if (t == 0.0) 2f else 1f))
+                native.drawText(scale.label(t), leftPx - 6f, yy + labelPx / 3, paint)
+            }
+            if (unit.isNotBlank()) {
+                paint.textAlign = android.graphics.Paint.Align.LEFT
+                native.drawText(unit, 0f, labelPx, paint)
+            }
+
+            // Ausgewählter Balken
+            selected?.let { i -> drawRect(highlight, Offset(leftPx + slot * i, topPx), Size(slot, plotH)) }
+
             series.forEachIndexed { s, (color, values) ->
                 values.forEachIndexed { i, v ->
                     if (v <= 0) return@forEachIndexed
-                    val h = (v / max * (size.height - 2)).toFloat().coerceAtLeast(2f)
-                    val x = slot * i + (slot - groupWidth) / 2 + barWidth * s
-                    drawRoundRect(color, Offset(x, size.height - h), Size(barWidth * 0.85f, h), radius)
+                    val h = (v / scale.max * plotH).toFloat().coerceAtLeast(2f)
+                    val x = leftPx + slot * i + (slot - groupWidth) / 2 + barWidth * s
+                    val alpha = if (selected == null || selected == i) 1f else 0.45f
+                    drawRoundRect(color.copy(alpha = alpha), Offset(x, topPx + plotH - h), Size(barWidth * 0.85f, h), radius)
                 }
             }
             targets?.forEachIndexed { i, t ->
                 if (t <= 0) return@forEachIndexed
-                val y = (size.height - t / max * (size.height - 2)).toFloat()
-                val x = slot * i + (slot - groupWidth) / 2 - 2f
-                drawRoundRect(c.textMuted, Offset(x, y - 1.5f), Size(groupWidth + 4f, 3f), CornerRadius(1.5f, 1.5f))
+                val x = leftPx + slot * i + (slot - groupWidth) / 2 - 2f
+                drawRoundRect(muted, Offset(x, y(t) - 1.5f), Size(groupWidth + 4f, 3f), CornerRadius(1.5f, 1.5f))
+            }
+
+            // X-Achse: Beschriftung unter den Balken
+            paint.textAlign = android.graphics.Paint.Align.CENTER
+            labels.forEachIndexed { i, l ->
+                if (i % labelEvery == 0 || selected == i) {
+                    paint.color = (if (selected == i) c.text else muted).toArgb()
+                    native.drawText(l, leftPx + slot * i + slot / 2, size.height - 2f, paint)
+                }
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Row(Modifier.fillMaxWidth()) {
-            labels.forEachIndexed { i, l ->
-                Text(
-                    if (i % labelEvery == 0) l else "",
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                    color = c.textMuted,
-                    maxLines = 1,
-                    softWrap = false,
-                )
+
+        // Detailanzeige des angetippten Balkens
+        val index = selected
+        Spacer(Modifier.height(6.dp))
+        if (index != null && index < labels.size) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surfaceHigh).padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Label(detailLabels?.getOrNull(index) ?: labels[index], color = c.text)
+                series.forEachIndexed { s, (color, values) ->
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Dot(color, 7.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(seriesNames.getOrNull(s) ?: "Wert", color = c.textMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(formatChartValue(values.getOrNull(index) ?: 0.0, unit), color = c.text, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                targets?.getOrNull(index)?.takeIf { it > 0 }?.let { t ->
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Dot(c.textMuted, 7.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(targetName, color = c.textMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(formatChartValue(t, unit), color = c.text, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
+        } else {
+            Label("Balken antippen für Details")
         }
     }
 }

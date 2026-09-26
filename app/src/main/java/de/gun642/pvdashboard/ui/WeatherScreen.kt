@@ -119,6 +119,10 @@ private fun TodayTile(f: Forecast, showPv: Boolean, pvgis: PvgisReference?) {
                     EnergyColors.pv to hours.map { if (showPv) it.pvKw ?: 0.0 else it.sunshineMinutes },
                 ),
                 labelEvery = 4,
+                seriesNames = listOf(if (showPv) "Erwartete Leistung" else "Sonnenschein"),
+                unit = if (showPv) "kW" else "min",
+                minScale = if (showPv) 1.0 else 60.0,
+                detailLabels = hours.map { String.format(Locale.GERMANY, "%02d:00 Uhr", it.time.hour) },
             )
             val now = LocalDateTime.now()
             hours.firstOrNull { it.time.hour == now.hour }?.let {

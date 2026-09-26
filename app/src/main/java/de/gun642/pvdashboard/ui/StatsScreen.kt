@@ -141,6 +141,17 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
                 PeriodType.MONTH -> 5
                 else -> 1
             },
+            seriesNames = listOf("Erzeugung", "Netzbezug"),
+            targetName = "PVGIS-Soll",
+            unit = "kWh",
+            // Mindest-Skala je Zeitraum: kleine Werte bleiben klein (kein aufgeblähtes Messrauschen)
+            minScale = when (r.period.type) {
+                PeriodType.DAY -> 0.5
+                PeriodType.MONTH -> 5.0
+                PeriodType.YEAR -> 50.0
+                PeriodType.TOTAL -> 500.0
+            },
+            detailLabels = r.buckets.map { b -> bucketTitle(r.period, b.index) },
         )
         Spacer(Modifier.height(8.dp))
         Legend(
@@ -203,4 +214,14 @@ private fun CostTile(tariff: Tariff, cost: CostSummary, r: StatsResult, onSettin
         ValueRow("Stromkosten netto", formatEuro(cost.netCost), emphasize = true)
         ValueRow("Ohne PV-Anlage", formatEuro(cost.costWithoutPv))
     }
+}
+
+/** Überschrift der Detailanzeige für einen Balken. */
+private fun bucketTitle(period: Period, index: Int): String = when (period.type) {
+    PeriodType.DAY -> String.format(Locale.GERMANY, "%02d:00–%02d:00 Uhr", index, (index + 1) % 24)
+    PeriodType.MONTH -> period.start.withDayOfMonth(index)
+        .format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM", Locale.GERMANY))
+    PeriodType.YEAR -> java.time.YearMonth.of(period.start.year, index)
+        .format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", Locale.GERMANY))
+    PeriodType.TOTAL -> index.toString()
 }
