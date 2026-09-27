@@ -16,6 +16,8 @@ import de.gun642.pvdashboard.senec.SenecClient
 import de.gun642.pvdashboard.senec.SenecSnapshot
 import de.gun642.pvdashboard.contracts.Contract
 import de.gun642.pvdashboard.contracts.ContractStore
+import de.gun642.pvdashboard.contracts.FlowType
+import de.gun642.pvdashboard.contracts.ContractCategory
 import de.gun642.pvdashboard.contracts.FinanceFilter
 import de.gun642.pvdashboard.contracts.FinancePdf
 import de.gun642.pvdashboard.contracts.FinanceSummary
@@ -35,6 +37,7 @@ import de.gun642.pvdashboard.stats.EnergySeries
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.stats.Period
 import de.gun642.pvdashboard.stats.PeriodType
+import de.gun642.pvdashboard.stats.PowerAdvanceCheck
 import de.gun642.pvdashboard.stats.PvgisReference
 import de.gun642.pvdashboard.stats.StatsRepository
 import de.gun642.pvdashboard.stats.StatsResult
@@ -501,6 +504,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ---------- Finanzen (Einnahmen & Ausgaben) ----------
     var financeYear by mutableStateOf(java.time.LocalDate.now().year)
     var financeFilter by mutableStateOf(FinanceFilter.ALL)
+
+    /** Übersicht für einen Monat (Standard) oder das ganze Jahr */
+    var financeMonthView by mutableStateOf(true)
+    var financeMonth by mutableStateOf(java.time.LocalDate.now().monthValue)
+
+    fun shiftFinanceMonth(delta: Int) {
+        val ym = java.time.YearMonth.of(financeYear, financeMonth).plusMonths(delta.toLong())
+        financeYear = ym.year
+        financeMonth = ym.monthValue
+    }
+
+    // ---------- Stromabschlag ----------
+    var advanceCheck by mutableStateOf<PowerAdvanceCheck?>(null)
+        private set
+    var advanceLoading by mutableStateOf(false)
+        private set
+    var advanceError by mutableStateOf<String?>(null)
+        private set
+
+    /** Abschlag aus den Einstellungen, sonst aus den Finanzposten der Kategorie „Strom“. */
+    val powerAdvance: Double
+        get() = settings.value.powerAdvance.takeIf { it > 0 }
+            ?: contracts.filter { it.flow == FlowType.EXPENSE && it.category == ContractCategory.POWER }.sumOf { it.monthlyCost }
+
+    /** Netzbezug je Monat aus der SENEC-Cloud laden und den Abschlag hochrechnen. */
+    fun loadAdvanceCheck() {
+        val s = settings.value
+        if (!s.hasCloud || !s.hasTariff || powerAdvance <= 0 || advanceLoading) return
+        viewModelScope.launch {
+            advanceLoading = true
+            advanceError = null
+            try {
+                val today = java.time.LocalDate.now()
+                val start = PowerAdvanceCheck.currentPeriodStart(s.billingStartMonth, today)
+                val imports = mutableMapOf<java.time.YearMonth, Double>()
+                for (year in (start.year - 1)..today.year) {
+                    val r = try {
+                        stats.load(Period(PeriodType.YEAR, java.time.LocalDate.of(year, 1, 1)))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // Vorjahr vor Inbetriebnahme fehlt – dann eben ohne
+                        if (year == today.year) throw e else continue
+                    }
+                    r.buckets.forEach { b -> imports[java.time.YearMonth.of(year, b.index)] = b.totals.gridImport }
+                }
+                // Monate nach heute sind noch leer und zählen nicht als gemessen
+                val current = java.time.YearMonth.from(today)
+                imports.keys.removeAll { it.isAfter(current) }
+                advanceCheck = PowerAdvanceCheck.of(s.billingStartMonth, imports, s.pricePerKwhCent, s.baseFeePerMonth, powerAdvance, today)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                advanceError = "Netzbezug konnte nicht geladen werden: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                advanceLoading = false
+            }
+        }
+    }
 
     fun financeSummary(year: Int = financeYear): FinanceSummary = FinanceSummary.of(contracts, year)
 

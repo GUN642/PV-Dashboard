@@ -18,7 +18,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 - **PVGIS-Referenz**: langjähriger Soll-Ertrag der EU (PVGIS) je Monat – automatisch geladen oder aus dem PVGIS-Bericht eingetragen; die Statistik zeigt Ist gegen Soll
 - **Wallbox**: Lademodus (Schnell, Solar, Gesperrt), Speicher lädt mit, Ladeunterbrechungen verhindern, Mindestladestrom – über die SENEC-Cloud, mit Rückmeldung des tatsächlichen Zustands
 - **Haus**: Strom- und Wasserzählerstände eintragen, Verbrauch je Monat (mit Vorjahresvergleich) und Jahr, Hochrechnung und Kosten nach Tarif; CSV-Import und -Export im Format der bisherigen Zähler-App; Warnung bei auffällig hohem Wasserverbrauch (mögliches Leck)
-- **Finanzen** (Haus → Finanzen): Einnahmen und Ausgaben – monatlich, viertel-/halbjährlich, jährlich oder einmalig – mit Jahresbilanz, Sparquote, Diagramm je Monat (tatsächliche Zahlungstermine), Aufteilung nach Kategorien, Filter und Sortierung; Verträge mit Laufzeit, automatischer Verlängerung und Kündigungsfrist inkl. Erinnerung; **PDF-Bericht** (Überblick, Diagramm, Monatstabelle, Kategorien, alle Posten) zum Speichern oder Teilen
+- **Finanzen** (Haus → Finanzen): Übersicht je Monat (Standard) oder Jahr; **Stromabschlag-Check** – Hochrechnung des Netzbezugs im Abrechnungszeitraum (gemessen, Rest nach Vorjahr) mit erwarteter Nachzahlung bzw. Guthaben und passendem Abschlag; Einnahmen und Ausgaben – monatlich, viertel-/halbjährlich, jährlich oder einmalig – mit Jahresbilanz, Sparquote, Diagramm je Monat (tatsächliche Zahlungstermine), Aufteilung nach Kategorien, Filter und Sortierung; Verträge mit Laufzeit, automatischer Verlängerung und Kündigungsfrist inkl. Erinnerung; **PDF-Bericht** (Überblick, Diagramm, Monatstabelle, Kategorien, alle Posten) zum Speichern oder Teilen
 - **Benachrichtigungen**: „Akku voll – Überschuss nutzen“ (Prüfung im gewählten Intervall, nur tagsüber, max. einmal täglich) und Erinnerungen an Kündigungsfristen
 - **Widget**: PV-Erzeugung und Autarkie groß, Aufteilung der PV-Erzeugung (Haus, Akku, Wallbox, Einspeisung), Netzbezug, Akku-Ladestand als farbige Punkte-Leiste; schwarz oder weiß mit einstellbarer Deckkraft; passt sich der Größe an (klein: nur PV-Erzeugung und Autarkie, mit mehr Platz Aufteilung, Akku und Einzelwerte); Aktualisierung per Tipp auf ⟳ (kein Hintergrund-Timer), Tipp auf die Werte öffnet die App
 - **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
@@ -29,7 +29,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 | --- | --- |
 | Speicher im Heimnetz | IP-Adresse des SENEC.Home für schnelle Live-Werte zu Hause |
 | SENEC-Konto | E-Mail und Passwort von mein-senec.de für unterwegs und für Statistiken. Das Passwort wird mit dem Android-Keystore verschlüsselt und nur auf dem Gerät gespeichert. |
-| Stromtarif | Anbieter, Arbeitspreis, Grundgebühr, Einspeisevergütung |
+| Stromtarif | Anbieter, Arbeitspreis, Grundgebühr, Einspeisevergütung, monatlicher Abschlag und Beginn des Abrechnungszeitraums |
 | Wassertarif | Versorger, Frischwasser- und Abwasserpreis je m³, Grundgebühr |
 | Standort & Anlage | Ort für das Wetter, kWp, Dachneigung, Azimut (180 = Süd, wie PVGIS) und Systemverluste für die Ertragsschätzung |
 | PVGIS-Referenz | Soll-Werte je Monat für den Ist/Soll-Vergleich |

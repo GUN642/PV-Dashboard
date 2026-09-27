@@ -56,6 +56,10 @@ data class AppSettings(
     val baseFeePerMonth: Double = 0.0,
     val pricePerKwhCent: Double = 0.0,
     val feedInCent: Double = 0.0,
+    /** Monatlicher Abschlag in € (0 = aus dem Finanzposten „Strom“) */
+    val powerAdvance: Double = 0.0,
+    /** Monat (1–12), in dem der Abrechnungszeitraum beginnt */
+    val billingStartMonth: Int = 1,
     // Standort & Anlage
     val locationName: String = "",
     val latitude: Double? = null,
@@ -159,6 +163,8 @@ class SettingsRepository(context: Context) {
             baseFeePerMonth = double("base_fee") ?: d.baseFeePerMonth,
             pricePerKwhCent = double("price_kwh") ?: d.pricePerKwhCent,
             feedInCent = double("feed_in") ?: d.feedInCent,
+            powerAdvance = double("power_advance") ?: d.powerAdvance,
+            billingStartMonth = prefs.getInt("billing_start_month", d.billingStartMonth),
             locationName = prefs.getString("location_name", d.locationName) ?: d.locationName,
             latitude = double("latitude"),
             longitude = double("longitude"),
@@ -209,6 +215,8 @@ class SettingsRepository(context: Context) {
         putDouble("base_fee", s.baseFeePerMonth)
         putDouble("price_kwh", s.pricePerKwhCent)
         putDouble("feed_in", s.feedInCent)
+        putDouble("power_advance", s.powerAdvance)
+        e.putInt("billing_start_month", s.billingStartMonth.coerceIn(1, 12))
         e.putString("location_name", s.locationName)
         putDouble("latitude", s.latitude)
         putDouble("longitude", s.longitude)

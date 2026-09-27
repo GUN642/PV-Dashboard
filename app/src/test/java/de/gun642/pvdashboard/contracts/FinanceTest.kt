@@ -72,4 +72,20 @@ class FinanceTest {
         assertNull(c.startDate)
         assertEquals(c, Contract.fromJson(c.toJson()))
     }
+
+    @Test
+    fun monthFiguresUseActualPaymentDates() {
+        val s = FinanceSummary.of(listOf(salary, rent, car, water, tv), 2026)
+        val jan = s.month(1)
+        assertEquals(3000.0, jan.income, 1e-9)
+        // Miete + Kfz-Versicherung (jährlich im Januar)
+        assertEquals(1480.0, jan.expense, 1e-9)
+        assertEquals(1520.0, jan.balance, 1e-9)
+        assertEquals(ContractCategory.HOUSING, jan.expenseByCategory.first().first)
+        assertEquals(480.0, jan.perItem.getValue(car.id), 1e-9)
+        val feb = s.month(2)
+        // Miete + Wasser (vierteljährlich ab Februar)
+        assertEquals(1090.0, feb.expense, 1e-9)
+        assertEquals(0.0, feb.perItem.getValue(car.id), 1e-9)
+    }
 }

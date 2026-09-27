@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,8 @@ import de.gun642.pvdashboard.contracts.ContractSort
 import de.gun642.pvdashboard.contracts.FinanceFilter
 import de.gun642.pvdashboard.contracts.FinanceSummary
 import de.gun642.pvdashboard.contracts.FlowType
+import de.gun642.pvdashboard.contracts.MonthFigures
+import de.gun642.pvdashboard.stats.MonthSource
 import de.gun642.pvdashboard.contracts.NoticeUnit
 import de.gun642.pvdashboard.notify.Notifier
 import de.gun642.pvdashboard.ui.theme.EnergyColors
@@ -100,14 +103,28 @@ fun ContractsSection(vm: MainViewModel, onEdit: (Contract, Boolean) -> Unit) {
         if (uri != null) vm.exportFinancePdf(uri)
     }
 
-    // Jahr wählen
+    val monthView = vm.financeMonthView
+    val monthName = YearMonth.of(year, vm.financeMonth).format(DateTimeFormatter.ofPattern("MMMM yyyy", deLocale))
+    val figures = remember(summary, vm.financeMonth) { summary.month(vm.financeMonth) }
+    LaunchedEffect(settings.powerAdvance, settings.billingStartMonth, settings.pricePerKwhCent, settings.baseFeePerMonth, vm.contracts) {
+        vm.loadAdvanceCheck()
+    }
+
+    // Monat oder Jahr, dann Zeitraum wählen
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Pill("Monat", monthView, { vm.financeMonthView = true })
+        Pill("Jahr", !monthView, { vm.financeMonthView = false })
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { vm.financeYear = year - 1 }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Vorjahr", tint = c.text)
+        IconButton(onClick = { if (monthView) vm.shiftFinanceMonth(-1) else vm.financeYear = year - 1 }) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Zurück", tint = c.text)
         }
-        Text(year.toString(), style = MaterialTheme.typography.titleLarge, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-        IconButton(onClick = { vm.financeYear = year + 1 }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Folgejahr", tint = c.text)
+        Text(
+            if (monthView) monthName else year.toString(),
+            style = MaterialTheme.typography.titleLarge, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = { if (monthView) vm.shiftFinanceMonth(1) else vm.financeYear = year + 1 }) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Weiter", tint = c.text)
         }
     }
 
@@ -122,10 +139,16 @@ fun ContractsSection(vm: MainViewModel, onEdit: (Contract, Boolean) -> Unit) {
             )
         }
     } else {
-        BalanceTile(summary)
+        if (monthView) MonthBalanceTile(figures, monthName, summary) else BalanceTile(summary)
+        PowerAdvanceTile(vm, settings.hasCloud, settings.hasTariff)
         CashflowTile(summary)
-        CategoryTile("Einnahmen nach Kategorie", summary.incomeByCategory, summary.totalIncome, flowColor(FlowType.INCOME))
-        CategoryTile("Ausgaben nach Kategorie", summary.expenseByCategory, summary.totalExpense, flowColor(FlowType.EXPENSE))
+        if (monthView) {
+            CategoryTile("Einnahmen im Monat", figures.incomeByCategory, figures.income, flowColor(FlowType.INCOME))
+            CategoryTile("Ausgaben im Monat", figures.expenseByCategory, figures.expense, flowColor(FlowType.EXPENSE))
+        } else {
+            CategoryTile("Einnahmen nach Kategorie", summary.incomeByCategory, summary.totalIncome, flowColor(FlowType.INCOME))
+            CategoryTile("Ausgaben nach Kategorie", summary.expenseByCategory, summary.totalExpense, flowColor(FlowType.EXPENSE))
+        }
 
         // Filter und Sortierung
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -143,7 +166,11 @@ fun ContractsSection(vm: MainViewModel, onEdit: (Contract, Boolean) -> Unit) {
                 FinanceFilter.EXPENSE -> it.flow == FlowType.EXPENSE
             }
         }
-        visible.forEach { item -> ItemTile(item, summary.perItem[item.id] ?: 0.0, year, today) { onEdit(item, false) } }
+        val periodLabel = if (monthView) YearMonth.of(year, vm.financeMonth).format(DateTimeFormatter.ofPattern("MMMM", deLocale)) else year.toString()
+        visible.forEach { item ->
+            val amount = (if (monthView) figures.perItem[item.id] else summary.perItem[item.id]) ?: 0.0
+            ItemTile(item, amount, periodLabel, today) { onEdit(item, false) }
+        }
     }
 
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -171,6 +198,97 @@ private fun BalanceTile(s: FinanceSummary) {
         ValueRow("Ø Einnahmen / Monat", formatEuro(s.totalIncome / 12))
         ValueRow("Ø Ausgaben / Monat", formatEuro(s.totalExpense / 12))
         s.savingsRate?.let { ValueRow("Sparquote", formatPercent(it.coerceAtLeast(-9.99)), emphasize = true) }
+    }
+}
+
+/** Bilanz eines Monats nach tatsächlichen Zahlungsterminen, dazu der Jahresdurchschnitt. */
+@Composable
+private fun MonthBalanceTile(m: MonthFigures, monthName: String, year: FinanceSummary) {
+    val c = VoidTheme.colors
+    val positive = m.balance >= 0
+    Tile(Modifier.fillMaxWidth()) {
+        Label((if (positive) "Überschuss " else "Fehlbetrag ") + monthName)
+        BigValue(String.format(deLocale, "%,.2f", m.balance), "€", color = if (positive) EnergyColors.gridExport else c.accent, size = 44)
+        Label(String.format(deLocale, "Ø Monat ${year.year}: %+,.2f €", year.balance / 12))
+        Spacer(Modifier.height(10.dp))
+        ValueRow("Einnahmen", "+" + formatEuro(m.income), dot = flowColor(FlowType.INCOME))
+        ValueRow("Ausgaben", "−" + formatEuro(m.expense), dot = flowColor(FlowType.EXPENSE))
+        m.savingsRate?.let {
+            Hairline()
+            ValueRow("Sparquote", formatPercent(it.coerceAtLeast(-9.99)), emphasize = true)
+        }
+    }
+}
+
+/** Reicht der Stromabschlag bis zur Jahresabrechnung? */
+@Composable
+private fun PowerAdvanceTile(vm: MainViewModel, hasCloud: Boolean, hasTariff: Boolean) {
+    val c = VoidTheme.colors
+    val advance = vm.powerAdvance
+    val check = vm.advanceCheck
+    Tile(Modifier.fillMaxWidth()) {
+        val range = check?.let {
+            val f = DateTimeFormatter.ofPattern("MM/yyyy")
+            " · ${it.periodStart.format(f)}–${it.periodEnd.format(f)}"
+        }.orEmpty()
+        Label("Stromabschlag$range")
+        Spacer(Modifier.height(6.dp))
+        val missing = when {
+            advance <= 0 -> "Trage in den Einstellungen unter Stromtarif deinen monatlichen Abschlag und den Beginn des Abrechnungszeitraums ein (oder lege eine Ausgabe der Kategorie „Strom“ an)."
+            !hasTariff -> "Für die Hochrechnung bitte in den Einstellungen Arbeitspreis und Grundgebühr eintragen."
+            !hasCloud -> "Der Netzbezug kommt aus der SENEC-Cloud – bitte das SENEC-Konto in den Einstellungen eintragen."
+            else -> null
+        }
+        if (missing != null) {
+            Text(missing, color = c.text, style = MaterialTheme.typography.bodyMedium)
+            return@Tile
+        }
+        vm.advanceError?.let { Text(it, color = c.accent, style = MaterialTheme.typography.bodyMedium) }
+        if (check == null) {
+            Label(if (vm.advanceLoading) "Lade Netzbezug …" else "Keine Daten")
+            return@Tile
+        }
+        val ok = check.difference >= 0
+        Label(if (ok) "Voraussichtlich Guthaben" else "Voraussichtlich Nachzahlung", color = if (ok) EnergyColors.gridExport else c.accent)
+        BigValue(String.format(deLocale, "%,.2f", kotlin.math.abs(check.difference)), "€", color = if (ok) EnergyColors.gridExport else c.accent, size = 40)
+        Spacer(Modifier.height(8.dp))
+        ValueRow("Abschläge 12 × ${formatEuro(check.advance)}", formatEuro(check.advanceTotal))
+        ValueRow(
+            String.format(deLocale, "Erwartete Kosten (%,.0f kWh)", check.expectedKwh),
+            formatEuro(check.expectedCost),
+        )
+        Hairline()
+        ValueRow("Passender Abschlag", formatEuro(check.neededAdvance) + " / Monat", emphasize = true)
+        check.neededFromNow?.let { v ->
+            val remaining = 12 - check.paymentsMade
+            if (remaining in 1..11) {
+                ValueRow("Ab nächstem Monat (noch $remaining)", formatEuro(v) + " / Monat", emphasize = !ok)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        BarChart(
+            labels = check.months.map { it.month.month.getDisplayName(java.time.format.TextStyle.SHORT, deLocale).take(3) },
+            series = listOf(
+                EnergyColors.gridImport to check.months.map { if (it.source == MonthSource.ACTUAL || it.source == MonthSource.PARTIAL) it.kwh else 0.0 },
+                c.textMuted to check.months.map { if (it.source == MonthSource.ACTUAL || it.source == MonthSource.PARTIAL) 0.0 else it.kwh },
+            ),
+            seriesNames = listOf("Gemessen", "Prognose"),
+            unit = "kWh",
+            minScale = 50.0,
+            labelEvery = 2,
+            detailLabels = check.months.map { m ->
+                m.month.format(DateTimeFormatter.ofPattern("MMMM yyyy", deLocale)) + when (m.source) {
+                    MonthSource.ACTUAL -> " · gemessen"
+                    MonthSource.PARTIAL -> " · laufend, Rest geschätzt"
+                    MonthSource.PREVIOUS_YEAR -> " · wie Vorjahr"
+                    MonthSource.AVERAGE -> " · Durchschnitt"
+                }
+            },
+        )
+        Spacer(Modifier.height(8.dp))
+        Legend(listOf("Netzbezug gemessen" to EnergyColors.gridImport, "Prognose" to c.textMuted))
+        Spacer(Modifier.height(6.dp))
+        Label(String.format(deLocale, "%.0f %% gemessen · Rest nach Vorjahr bzw. Durchschnitt", check.measuredShare * 100))
     }
 }
 
@@ -211,7 +329,7 @@ private fun CategoryTile(title: String, data: List<Pair<ContractCategory, Double
 }
 
 @Composable
-private fun ItemTile(item: Contract, inYear: Double, year: Int, today: LocalDate, onClick: () -> Unit) {
+private fun ItemTile(item: Contract, inPeriod: Double, periodLabel: String, today: LocalDate, onClick: () -> Unit) {
     val c = VoidTheme.colors
     Tile(Modifier.fillMaxWidth(), onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -228,7 +346,7 @@ private fun ItemTile(item: Contract, inYear: Double, year: Int, today: LocalDate
             }
         }
         Spacer(Modifier.height(6.dp))
-        Label("$year: ${formatEuro(inYear)}")
+        Label("$periodLabel: ${formatEuro(inPeriod)}")
         if (item.hasContract) {
             val deadline = item.nextDeadline(today)
             val due = item.reminderDue(today)

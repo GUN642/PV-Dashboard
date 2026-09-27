@@ -124,6 +124,22 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
             NumberField(s.feedInCent, { v -> vm.updateSettings { copy(feedInCent = v) } }, "Einspeisevergütung", "ct/kWh")
+            Spacer(Modifier.height(8.dp))
+            NumberField(s.powerAdvance, { v -> vm.updateSettings { copy(powerAdvance = v) } }, "Monatlicher Abschlag", "€/Monat")
+            Spacer(Modifier.height(8.dp))
+            Label("Abrechnungszeitraum beginnt im")
+            Spacer(Modifier.height(6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                (1..12).forEach { m ->
+                    Pill(
+                        java.time.Month.of(m).getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(3),
+                        s.billingStartMonth == m,
+                        { vm.updateSettings { copy(billingStartMonth = m) } },
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Hint("Mit Abschlag und Abrechnungsbeginn prüft Haus → Finanzen, ob der Abschlag bis zur Jahresabrechnung reicht. Ohne Eintrag wird der Finanzposten der Kategorie „Strom“ verwendet.")
 
             // ---------- Wassertarif ----------
             Group("Wassertarif")
