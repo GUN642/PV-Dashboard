@@ -10,6 +10,11 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.os.Build
+import android.os.Bundle
+import android.util.SizeF
+import android.util.TypedValue
+import android.view.View
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -93,6 +98,11 @@ class LiveWidget : AppWidgetProvider() {
         render(context, manager, ids)
         // Beim ersten Platzieren ohne gespeicherte Werte einmal abrufen.
         if (WidgetCache.load(context) == null) context.sendBroadcast(refreshIntent(context))
+    }
+
+    /** Größe geändert: passend zur neuen Größe neu zeichnen. */
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
+        render(context, manager, intArrayOf(id))
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -231,12 +241,42 @@ class LiveWidget : AppWidgetProvider() {
         private fun render(context: Context, manager: AppWidgetManager, ids: IntArray, status: String? = null) {
             val settings = SettingsRepository(context).settings.value
             val data = WidgetCache.load(context)
-            val views = build(context, settings, data, status)
-            ids.forEach { manager.updateAppWidget(it, views) }
+            ids.forEach { id -> manager.updateAppWidget(id, viewsFor(context, manager, id, settings, data, status)) }
         }
 
-        private fun build(context: Context, s: AppSettings, d: WidgetData?, status: String?): RemoteViews {
+        /**
+         * Ab Android 12 liefert der Launcher die tatsächlichen Größen (Hoch-/Querformat) – dafür je ein
+         * passendes Layout. Ältere Versionen: Breite im Hochformat (min) und Höhe (max) aus den Optionen.
+         */
+        private fun viewsFor(context: Context, manager: AppWidgetManager, id: Int, s: AppSettings, d: WidgetData?, status: String?): RemoteViews {
+            val options = manager.getAppWidgetOptions(id)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                @Suppress("DEPRECATION")
+                val sizes = options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+                if (!sizes.isNullOrEmpty()) {
+                    return RemoteViews(sizes.distinct().associateWith { build(context, s, d, status, WidgetLayout.of(it.width, it.height)) })
+                }
+            }
+            val w = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            val h = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+            val layout = if (w > 0 && h > 0) WidgetLayout.of(w.toFloat(), h.toFloat()) else WidgetLayout.FULL
+            return build(context, s, d, status, layout)
+        }
+
+        private fun build(context: Context, s: AppSettings, d: WidgetData?, status: String?, layout: WidgetLayout): RemoteViews {
             val v = RemoteViews(context.packageName, R.layout.widget_live)
+
+            // Je nach Größe Bereiche ausblenden und die großen Werte passend skalieren
+            fun show(id: Int, visible: Boolean) = v.setViewVisibility(id, if (visible) View.VISIBLE else View.GONE)
+            show(R.id.widget_title, layout.title)
+            show(R.id.widget_share_bar, layout.shareBar)
+            show(R.id.widget_battery_row, layout.battery)
+            show(R.id.widget_share_text, layout.shareText)
+            show(R.id.widget_grid, layout.grid)
+            show(R.id.widget_col_3, layout.fourColumns)
+            show(R.id.widget_col_4, layout.fourColumns)
+            v.setTextViewTextSize(R.id.widget_pv, TypedValue.COMPLEX_UNIT_DIP, layout.bigTextDp)
+            v.setTextViewTextSize(R.id.widget_autarky, TypedValue.COMPLEX_UNIT_DIP, layout.bigTextDp)
 
             // Hintergrund schwarz oder weiß mit einstellbarer Deckkraft
             val background = if (s.widgetDark) Color.BLACK else Color.WHITE

@@ -86,6 +86,7 @@
                     <TextView
                         android:id="@+id/widget_pv"
                         style="@style/WidgetBigValue"
+                        android:layout_marginEnd="6dp"
                         android:text="–" />
                 </LinearLayout>
                 <LinearLayout
@@ -121,6 +122,7 @@
                 android:text="" />
 
             <LinearLayout
+                android:id="@+id/widget_grid"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -154,6 +156,7 @@
                         android:text="–" />
                 </LinearLayout>
                 <LinearLayout
+                    android:id="@+id/widget_col_3"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -168,6 +171,7 @@
                         android:text="–" />
                 </LinearLayout>
                 <LinearLayout
+                    android:id="@+id/widget_col_4"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -185,6 +189,7 @@
 
             <!-- Akku: Punkte-Leiste nach Ladestand gefärbt -->
             <LinearLayout
+                android:id="@+id/widget_battery_row"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
