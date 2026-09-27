@@ -174,19 +174,21 @@ class LiveWidget : AppWidgetProvider() {
             return sb
         }
 
-        /** Punkte-Leiste für den Akku: rot unter 10 %, grün über 90 %, sonst gelb. */
+        /** Farbe des Akku-Ladestands: rot unter 10 %, grün über 90 %, sonst gelb (auch in der App). */
+        fun socColor(soc: Double): Int = when {
+            soc < 10 -> LOW_RED
+            soc > 90 -> EXPORT_GREEN
+            else -> MID_YELLOW
+        }
+
+        /** Punkte-Leiste für den Akku in [socColor]. */
         private fun batteryBar(soc: Double?, muted: Int): Bitmap {
             val dots = 20
             val step = 24
             val bmp = Bitmap.createBitmap(dots * step, step, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bmp)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            val color = when {
-                soc == null -> muted
-                soc < 10 -> LOW_RED
-                soc > 90 -> EXPORT_GREEN
-                else -> MID_YELLOW
-            }
+            val color = soc?.let { socColor(it) } ?: muted
             val filled = soc?.let { ((it / 100) * dots + 0.5).toInt().coerceIn(0, dots) } ?: 0
             for (i in 0 until dots) {
                 paint.color = if (i < filled) color else muted

@@ -34,6 +34,7 @@ import de.gun642.pvdashboard.senec.SenecSnapshot
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.ui.theme.EnergyColors
 import de.gun642.pvdashboard.ui.theme.VoidTheme
+import de.gun642.pvdashboard.widget.LiveWidget
 import de.gun642.pvdashboard.widget.PvShares
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -210,7 +211,8 @@ private fun BatteryTile(s: SenecSnapshot) {
             Text(formatPercent(soc / 100), style = MaterialTheme.typography.titleLarge, color = VoidTheme.colors.text)
         }
         Spacer(Modifier.height(10.dp))
-        DotBar((soc / 100).toFloat(), Modifier.fillMaxWidth().height(12.dp), dots = 24, color = VoidTheme.colors.accent)
+        // Farben wie im Widget: rot unter 10 %, gelb, grün über 90 %
+        DotBar((soc / 100).toFloat(), Modifier.fillMaxWidth().height(12.dp), dots = 24, color = Color(LiveWidget.socColor(soc)))
     }
 }
 
