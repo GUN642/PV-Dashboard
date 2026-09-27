@@ -131,6 +131,9 @@ class LiveWidget : AppWidgetProvider() {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, LiveWidget::class.java))
             if (ids.isNotEmpty()) render(context, manager, ids, status)
+            // Die kleinen Widgets nutzen dieselben Werte bzw. Farbeinstellungen
+            BatteryWidget.updateAll(context)
+            ForecastWidget.updateAll(context)
         }
 
         private val BATTERY_BLUE = Color.parseColor("#3D7BFF")

@@ -44,6 +44,8 @@ import de.gun642.pvdashboard.stats.StatsResult
 import de.gun642.pvdashboard.stats.Tariff
 import de.gun642.pvdashboard.stats.YearCompare
 import de.gun642.pvdashboard.wallbox.ChargeLog
+import de.gun642.pvdashboard.widget.ForecastCache
+import de.gun642.pvdashboard.widget.ForecastWidget
 import de.gun642.pvdashboard.wallbox.ChargeMonth
 import de.gun642.pvdashboard.wallbox.ChargePdf
 import de.gun642.pvdashboard.weather.Forecast
@@ -874,6 +876,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 forecast = OpenMeteo.forecast(lat, lon, s.peakPowerKwp, s.tiltDegrees, s.azimuthFromSouth, s.performanceRatio)
                 forecastAt = System.currentTimeMillis()
+                // Widget „PV-Prognose“ gleich mit aktualisieren
+                forecast?.let { f ->
+                    val app = getApplication<Application>()
+                    withContext(Dispatchers.IO) { ForecastCache.save(app, f) }
+                    ForecastWidget.updateAll(app)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

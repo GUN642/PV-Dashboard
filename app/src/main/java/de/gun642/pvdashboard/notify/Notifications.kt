@@ -249,7 +249,7 @@ class MeterReminderWorker(context: Context, params: WorkerParameters) : Coroutin
                 applicationContext, 3001, Notifier.CHANNEL_REMINDERS,
                 "Zählerstände ablesen",
                 "Trag heute die Stände von Strom- und Wasserzähler ein – für Verbrauch, Leck-Warnung und Abschlag-Check.",
-                tab = "HOME",
+                tab = "METERS",
             )
             state.edit().putString("meter_reminded", LocalDate.now().toString()).apply()
         }

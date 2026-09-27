@@ -100,7 +100,7 @@ object ChargePdf {
                 c().drawLine(MARGIN, y, PAGE_W - MARGIN, y, Paint().apply { color = LINE })
                 y += 14
             }
-            ensure(40)
+            ensure(40f)
             header()
             val dateF = DateTimeFormatter.ofPattern("EE dd.MM.", de)
             val timeF = DateTimeFormatter.ofPattern("HH:mm")
@@ -122,7 +122,7 @@ object ChargePdf {
                 y += 16
             }
             y += 16
-            ensure(40)
+            ensure(40f)
             val note = paint(8f, MUTED)
             c().drawText("Ladevorgänge aus stündlichen Messwerten der SENEC-Cloud; Zeiten auf die Stunde genau.", MARGIN, y, note)
             y += 11

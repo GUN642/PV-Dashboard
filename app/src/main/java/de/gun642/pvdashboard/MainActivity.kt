@@ -35,10 +35,12 @@ class MainActivity : ComponentActivity() {
     /** Aus einer Benachrichtigung heraus direkt den passenden Tab öffnen. */
     private fun openTabFrom(intent: Intent?) {
         val name = intent?.getStringExtra(Notifier.EXTRA_TAB) ?: return
-        Tab.entries.firstOrNull { it.name == name }?.let {
+        // „METERS“: Haus-Tab mit den Zählerständen statt der Finanzen
+        val target = if (name == "METERS") Tab.HOME else Tab.entries.firstOrNull { it.name == name }
+        target?.let {
             viewModel.tab = it
             viewModel.screen = Screen.MAIN
-            if (it == Tab.HOME) viewModel.showContracts = true
+            if (it == Tab.HOME) viewModel.showContracts = name != "METERS"
         }
     }
 

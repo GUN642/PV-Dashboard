@@ -40,6 +40,28 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_live_info" />
         </receiver>
+        <receiver
+            android:name=".widget.BatteryWidget"
+            android:exported="false"
+            android:label="VOID Akku">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_battery_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.ForecastWidget"
+            android:exported="false"
+            android:label="VOID PV-Prognose">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_forecast_info" />
+        </receiver>
 
         <!-- Für das Installieren heruntergeladener Updates -->
         <provider

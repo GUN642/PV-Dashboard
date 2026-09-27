@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">VOID Home Dashboard</string>
     <string name="widget_description">Live-Werte der PV-Anlage. Aktualisierung per Tipp auf ⟳.</string>
+    <string name="widget_battery_description">Akku-Ladestand als Punkte-Ring. Tippen aktualisiert.</string>
+    <string name="widget_forecast_description">Geschätzter PV-Ertrag heute und morgen. Aktualisierung per Tipp auf ⟳.</string>
 </resources>

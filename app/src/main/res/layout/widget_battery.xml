@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/battery_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/battery_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_background" />
+
+    <!-- Ring aus Punkten mit Ladestand in der Mitte, als Bild gezeichnet -->
+    <ImageView
+        android:id="@+id/battery_ring"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="Akku-Ladestand"
+        android:padding="6dp"
+        android:scaleType="fitCenter" />
+</FrameLayout>
