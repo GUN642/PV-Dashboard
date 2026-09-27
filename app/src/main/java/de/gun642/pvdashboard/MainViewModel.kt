@@ -37,12 +37,15 @@ import de.gun642.pvdashboard.stats.EnergySeries
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.stats.Period
 import de.gun642.pvdashboard.stats.PeriodType
-import de.gun642.pvdashboard.stats.PowerAdvanceCheck
+import de.gun642.pvdashboard.stats.AdvanceCheck
 import de.gun642.pvdashboard.stats.PvgisReference
 import de.gun642.pvdashboard.stats.StatsRepository
 import de.gun642.pvdashboard.stats.StatsResult
 import de.gun642.pvdashboard.stats.Tariff
 import de.gun642.pvdashboard.stats.YearCompare
+import de.gun642.pvdashboard.wallbox.ChargeLog
+import de.gun642.pvdashboard.wallbox.ChargeMonth
+import de.gun642.pvdashboard.wallbox.ChargePdf
 import de.gun642.pvdashboard.weather.Forecast
 import de.gun642.pvdashboard.weather.OpenMeteo
 import de.gun642.pvdashboard.weather.Place
@@ -515,13 +518,136 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         financeMonth = ym.monthValue
     }
 
+    // ---------- Ladelog der Wallbox ----------
+    var chargeMonth by mutableStateOf(java.time.YearMonth.now())
+        private set
+    var chargeLog by mutableStateOf<ChargeMonth?>(null)
+        private set
+    var chargeLoading by mutableStateOf(false)
+        private set
+    var chargeError by mutableStateOf<String?>(null)
+        private set
+    private val chargeCache = mutableMapOf<java.time.YearMonth, ChargeMonth>()
+    private var chargeJob: Job? = null
+
+    fun shiftChargeMonth(delta: Int) {
+        val next = chargeMonth.plusMonths(delta.toLong())
+        if (next.isAfter(java.time.YearMonth.now())) return
+        chargeMonth = next
+        loadChargeLog()
+    }
+
+    /** Ladevorgänge eines Monats aus den stündlichen Messwerten der SENEC-Cloud. */
+    fun loadChargeLog(force: Boolean = false) {
+        if (!settings.value.hasCloud) return
+        val month = chargeMonth
+        val finished = month.isBefore(java.time.YearMonth.now())
+        if (!force && finished) chargeCache[month]?.let { chargeLog = it; chargeError = null; return }
+        chargeJob?.cancel()
+        chargeJob = viewModelScope.launch {
+            chargeLoading = true
+            chargeError = null
+            chargeLog = chargeCache[month]
+            try {
+                val zone = java.time.ZoneId.systemDefault()
+                val from = month.atDay(1).atStartOfDay(zone).toInstant()
+                val to = minOf(month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant(), java.time.Instant.now())
+                val points = try {
+                    cloud.measurements("HOUR", from, to).points
+                } catch (e: de.gun642.pvdashboard.data.HttpException) {
+                    // Falls ein ganzer Monat in Stundenauflösung abgelehnt wird: Tag für Tag
+                    if (e.code !in 400..499 || e.code == 401) throw e
+                    val days = mutableListOf<de.gun642.pvdashboard.senec.cloud.MeasurementPoint>()
+                    var day = month.atDay(1)
+                    while (day.atStartOfDay(zone).toInstant().isBefore(to)) {
+                        days += cloud.measurements("HOUR", day.atStartOfDay(zone).toInstant(), day.plusDays(1).atStartOfDay(zone).toInstant()).points
+                        day = day.plusDays(1)
+                    }
+                    days
+                }
+                val result = ChargeMonth(ChargeLog.sessions(points, zone).sortedByDescending { it.start })
+                chargeCache[month] = result
+                if (chargeMonth == month) chargeLog = result
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                chargeError = "Ladevorgänge konnten nicht geladen werden: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                chargeLoading = false
+            }
+        }
+    }
+
+    fun chargePdfName(month: java.time.YearMonth = chargeMonth) = "Ladebericht-$month.pdf"
+
+    private fun writeChargePdf(out: java.io.OutputStream, month: java.time.YearMonth, log: ChargeMonth) {
+        val s = settings.value
+        ChargePdf.write(getApplication<Application>(), out, month, log, s.pricePerKwhCent, s.feedInCent)
+    }
+
+    fun exportChargePdf(uri: android.net.Uri) {
+        val month = chargeMonth
+        val log = chargeLog ?: return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { writeChargePdf(it, month, log) }
+                        ?: throw java.io.IOException("Datei nicht beschreibbar")
+                }
+                message("PDF gespeichert")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("PDF-Export fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
+    fun shareChargePdf() {
+        val month = chargeMonth
+        val log = chargeLog ?: return
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
+                    File(dir, chargePdfName(month)).also { f -> f.outputStream().use { writeChargePdf(it, month, log) } }
+                }
+                _events.tryEmit(UiEvent.Share(file, "application/pdf"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("PDF-Export fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
     // ---------- Stromabschlag ----------
-    var advanceCheck by mutableStateOf<PowerAdvanceCheck?>(null)
+    var advanceCheck by mutableStateOf<AdvanceCheck?>(null)
         private set
     var advanceLoading by mutableStateOf(false)
         private set
     var advanceError by mutableStateOf<String?>(null)
         private set
+
+    /** Wasser-Abschlag aus den Einstellungen, sonst aus den Finanzposten der Kategorie „Wasser“. */
+    val waterAdvance: Double
+        get() = settings.value.waterAdvance.takeIf { it > 0 }
+            ?: contracts.filter { it.flow == FlowType.EXPENSE && it.category == ContractCategory.WATER }.sumOf { it.monthlyCost }
+
+    /**
+     * Wasser-Abschlag hochrechnen – aus den Zählerständen, ohne Netzabruf. Monate, die noch nicht
+     * vollständig abgelesen sind, werden geschätzt (Vorjahresmonat bzw. Durchschnitt).
+     */
+    fun waterAdvanceCheck(): AdvanceCheck? {
+        val s = settings.value
+        val readings = readings(MeterType.WATER)
+        val price = s.waterPricePerM3 + s.wastewaterPerM3
+        if (waterAdvance <= 0 || price <= 0 || readings.size < 2) return null
+        val lastReading = readings.maxOf { it.date }
+        val usage = de.gun642.pvdashboard.meters.Consumption.monthly(readings)
+            .filterKeys { !it.atEndOfMonth().isAfter(lastReading.minusDays(1)) }
+        return AdvanceCheck.of(s.waterBillingStartMonth, usage, price, s.waterBaseFeePerMonth, waterAdvance)
+    }
 
     /** Abschlag aus den Einstellungen, sonst aus den Finanzposten der Kategorie „Strom“. */
     val powerAdvance: Double
@@ -537,7 +663,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             advanceError = null
             try {
                 val today = java.time.LocalDate.now()
-                val start = PowerAdvanceCheck.currentPeriodStart(s.billingStartMonth, today)
+                val start = AdvanceCheck.currentPeriodStart(s.billingStartMonth, today)
                 val imports = mutableMapOf<java.time.YearMonth, Double>()
                 for (year in (start.year - 1)..today.year) {
                     val r = try {
@@ -553,7 +679,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // Monate nach heute sind noch leer und zählen nicht als gemessen
                 val current = java.time.YearMonth.from(today)
                 imports.keys.removeAll { it.isAfter(current) }
-                advanceCheck = PowerAdvanceCheck.of(s.billingStartMonth, imports, s.pricePerKwhCent, s.baseFeePerMonth, powerAdvance, today)
+                advanceCheck = AdvanceCheck.of(s.billingStartMonth, imports, s.pricePerKwhCent / 100, s.baseFeePerMonth, powerAdvance, today)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

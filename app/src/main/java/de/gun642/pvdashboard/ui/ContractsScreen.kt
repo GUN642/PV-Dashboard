@@ -50,7 +50,9 @@ import de.gun642.pvdashboard.contracts.FinanceFilter
 import de.gun642.pvdashboard.contracts.FinanceSummary
 import de.gun642.pvdashboard.contracts.FlowType
 import de.gun642.pvdashboard.contracts.MonthFigures
+import de.gun642.pvdashboard.stats.AdvanceCheck
 import de.gun642.pvdashboard.stats.MonthSource
+import de.gun642.pvdashboard.meters.MeterType
 import de.gun642.pvdashboard.contracts.NoticeUnit
 import de.gun642.pvdashboard.notify.Notifier
 import de.gun642.pvdashboard.ui.theme.EnergyColors
@@ -141,6 +143,7 @@ fun ContractsSection(vm: MainViewModel, onEdit: (Contract, Boolean) -> Unit) {
     } else {
         if (monthView) MonthBalanceTile(figures, monthName, summary) else BalanceTile(summary)
         PowerAdvanceTile(vm, settings.hasCloud, settings.hasTariff)
+        WaterAdvanceTile(vm)
         CashflowTile(summary)
         if (monthView) {
             CategoryTile("Einnahmen im Monat", figures.incomeByCategory, figures.income, flowColor(FlowType.INCOME))
@@ -223,29 +226,65 @@ private fun MonthBalanceTile(m: MonthFigures, monthName: String, year: FinanceSu
 /** Reicht der Stromabschlag bis zur Jahresabrechnung? */
 @Composable
 private fun PowerAdvanceTile(vm: MainViewModel, hasCloud: Boolean, hasTariff: Boolean) {
+    val missing = when {
+        vm.powerAdvance <= 0 -> "Trage in den Einstellungen unter Stromtarif deinen monatlichen Abschlag und den Beginn des Abrechnungszeitraums ein (oder lege eine Ausgabe der Kategorie „Strom“ an)."
+        !hasTariff -> "Für die Hochrechnung bitte in den Einstellungen Arbeitspreis und Grundgebühr eintragen."
+        !hasCloud -> "Der Netzbezug kommt aus der SENEC-Cloud – bitte das SENEC-Konto in den Einstellungen eintragen."
+        else -> null
+    }
+    AdvanceTile(
+        title = "Stromabschlag", check = vm.advanceCheck, missing = missing, loading = vm.advanceLoading, error = vm.advanceError,
+        unit = "kWh", measuredName = "Netzbezug gemessen", color = EnergyColors.gridImport,
+        footnote = "gemessen (SENEC) · Rest nach Vorjahr bzw. Durchschnitt",
+    )
+}
+
+/** Reicht der Wasserabschlag? Aus den Zählerständen hochgerechnet. */
+@Composable
+private fun WaterAdvanceTile(vm: MainViewModel) {
+    val s = vm.settings.collectAsState().value
+    val readings = vm.readings(MeterType.WATER)
+    val check = remember(readings, s, vm.contracts) { vm.waterAdvanceCheck() }
+    val missing = when {
+        vm.waterAdvance <= 0 -> "Trage in den Einstellungen unter Wassertarif deinen monatlichen Abschlag und den Beginn des Abrechnungszeitraums ein (oder lege eine Ausgabe der Kategorie „Wasser“ an)."
+        s.waterPricePerM3 + s.wastewaterPerM3 <= 0 -> "Für die Hochrechnung bitte in den Einstellungen die Wasserpreise eintragen."
+        readings.size < 2 -> "Für die Hochrechnung werden mindestens zwei Wasserzählerstände gebraucht (Haus → Wasser)."
+        else -> null
+    }
+    AdvanceTile(
+        title = "Wasserabschlag", check = check, missing = missing, loading = false, error = null,
+        unit = "m³", measuredName = "Verbrauch abgelesen", color = EnergyColors.battery,
+        footnote = "aus Zählerständen · Rest nach Vorjahr bzw. Durchschnitt",
+    )
+}
+
+@Composable
+private fun AdvanceTile(
+    title: String,
+    check: AdvanceCheck?,
+    missing: String?,
+    loading: Boolean,
+    error: String?,
+    unit: String,
+    measuredName: String,
+    color: Color,
+    footnote: String,
+) {
     val c = VoidTheme.colors
-    val advance = vm.powerAdvance
-    val check = vm.advanceCheck
     Tile(Modifier.fillMaxWidth()) {
         val range = check?.let {
             val f = DateTimeFormatter.ofPattern("MM/yyyy")
             " · ${it.periodStart.format(f)}–${it.periodEnd.format(f)}"
         }.orEmpty()
-        Label("Stromabschlag$range")
+        Label("$title$range")
         Spacer(Modifier.height(6.dp))
-        val missing = when {
-            advance <= 0 -> "Trage in den Einstellungen unter Stromtarif deinen monatlichen Abschlag und den Beginn des Abrechnungszeitraums ein (oder lege eine Ausgabe der Kategorie „Strom“ an)."
-            !hasTariff -> "Für die Hochrechnung bitte in den Einstellungen Arbeitspreis und Grundgebühr eintragen."
-            !hasCloud -> "Der Netzbezug kommt aus der SENEC-Cloud – bitte das SENEC-Konto in den Einstellungen eintragen."
-            else -> null
-        }
         if (missing != null) {
             Text(missing, color = c.text, style = MaterialTheme.typography.bodyMedium)
             return@Tile
         }
-        vm.advanceError?.let { Text(it, color = c.accent, style = MaterialTheme.typography.bodyMedium) }
+        error?.let { Text(it, color = c.accent, style = MaterialTheme.typography.bodyMedium) }
         if (check == null) {
-            Label(if (vm.advanceLoading) "Lade Netzbezug …" else "Keine Daten")
+            Label(if (loading) "Lade Verbrauch …" else "Keine Daten")
             return@Tile
         }
         val ok = check.difference >= 0
@@ -254,7 +293,7 @@ private fun PowerAdvanceTile(vm: MainViewModel, hasCloud: Boolean, hasTariff: Bo
         Spacer(Modifier.height(8.dp))
         ValueRow("Abschläge 12 × ${formatEuro(check.advance)}", formatEuro(check.advanceTotal))
         ValueRow(
-            String.format(deLocale, "Erwartete Kosten (%,.0f kWh)", check.expectedKwh),
+            String.format(deLocale, "Erwartete Kosten (%,.${if (unit == "m³") 1 else 0}f $unit)", check.expectedKwh),
             formatEuro(check.expectedCost),
         )
         Hairline()
@@ -266,15 +305,16 @@ private fun PowerAdvanceTile(vm: MainViewModel, hasCloud: Boolean, hasTariff: Bo
             }
         }
         Spacer(Modifier.height(10.dp))
+        fun measured(m: de.gun642.pvdashboard.stats.AdvanceMonth) = m.source == MonthSource.ACTUAL || m.source == MonthSource.PARTIAL
         BarChart(
             labels = check.months.map { it.month.month.getDisplayName(java.time.format.TextStyle.SHORT, deLocale).take(3) },
             series = listOf(
-                EnergyColors.gridImport to check.months.map { if (it.source == MonthSource.ACTUAL || it.source == MonthSource.PARTIAL) it.kwh else 0.0 },
-                c.textMuted to check.months.map { if (it.source == MonthSource.ACTUAL || it.source == MonthSource.PARTIAL) 0.0 else it.kwh },
+                color to check.months.map { if (measured(it)) it.kwh else 0.0 },
+                c.textMuted to check.months.map { if (measured(it)) 0.0 else it.kwh },
             ),
             seriesNames = listOf("Gemessen", "Prognose"),
-            unit = "kWh",
-            minScale = 50.0,
+            unit = unit,
+            minScale = if (unit == "m³") 5.0 else 50.0,
             labelEvery = 2,
             detailLabels = check.months.map { m ->
                 m.month.format(DateTimeFormatter.ofPattern("MMMM yyyy", deLocale)) + when (m.source) {
@@ -286,9 +326,9 @@ private fun PowerAdvanceTile(vm: MainViewModel, hasCloud: Boolean, hasTariff: Bo
             },
         )
         Spacer(Modifier.height(8.dp))
-        Legend(listOf("Netzbezug gemessen" to EnergyColors.gridImport, "Prognose" to c.textMuted))
+        Legend(listOf(measuredName to color, "Prognose" to c.textMuted))
         Spacer(Modifier.height(6.dp))
-        Label(String.format(deLocale, "%.0f %% gemessen · Rest nach Vorjahr bzw. Durchschnitt", check.measuredShare * 100))
+        Label(String.format(deLocale, "%.0f %% ", check.measuredShare * 100) + footnote)
     }
 }
 

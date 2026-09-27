@@ -9,16 +9,17 @@ enum class MonthSource { ACTUAL, PARTIAL, PREVIOUS_YEAR, AVERAGE }
 data class AdvanceMonth(val month: YearMonth, val kwh: Double, val source: MonthSource)
 
 /**
- * Reicht der monatliche Stromabschlag? Hochrechnung des Netzbezugs für den laufenden
- * Abrechnungszeitraum (12 Monate) aus den SENEC-Monatswerten:
+ * Reicht der monatliche Abschlag (Strom oder Wasser)? Hochrechnung des Verbrauchs für den laufenden
+ * Abrechnungszeitraum (12 Monate) aus Monatswerten (Strom: SENEC-Netzbezug, Wasser: Zählerstände):
  * - vergangene Monate: tatsächlicher Netzbezug
  * - laufender Monat: bisheriger Bezug, Rest anteilig nach Vorjahresmonat (sonst nach bisherigem Tagesschnitt)
  * - kommende Monate: derselbe Monat im Vorjahr, sonst Durchschnitt der bekannten Monate
  */
-data class PowerAdvanceCheck(
+data class AdvanceCheck(
     val periodStart: YearMonth,
     val months: List<AdvanceMonth>,
-    val pricePerKwhCent: Double,
+    /** Preis je Einheit (kWh bzw. m³) in € */
+    val pricePerUnit: Double,
     val baseFeePerMonth: Double,
     /** Abschlag je Monat in € */
     val advance: Double,
@@ -27,7 +28,7 @@ data class PowerAdvanceCheck(
 ) {
     val periodEnd: YearMonth get() = periodStart.plusMonths(11)
     val expectedKwh: Double get() = months.sumOf { it.kwh }
-    val expectedCost: Double get() = expectedKwh * pricePerKwhCent / 100 + baseFeePerMonth * 12
+    val expectedCost: Double get() = expectedKwh * pricePerUnit + baseFeePerMonth * 12
     val advanceTotal: Double get() = advance * 12
 
     /** Positiv = Guthaben, negativ = Nachzahlung */
@@ -58,11 +59,11 @@ data class PowerAdvanceCheck(
         fun of(
             startMonth: Int,
             gridImport: Map<YearMonth, Double>,
-            pricePerKwhCent: Double,
+            pricePerUnit: Double,
             baseFeePerMonth: Double,
             advance: Double,
             today: LocalDate = LocalDate.now(),
-        ): PowerAdvanceCheck {
+        ): AdvanceCheck {
             val start = currentPeriodStart(startMonth, today)
             val current = YearMonth.from(today)
             // Durchschnitt aus den letzten 12 abgeschlossenen Monaten mit Werten
@@ -75,8 +76,11 @@ data class PowerAdvanceCheck(
                 when {
                     m.isBefore(current) -> gridImport[m]?.let { AdvanceMonth(m, it, MonthSource.ACTUAL) }
                         ?: AdvanceMonth(m, previous ?: average, if (previous != null) MonthSource.PREVIOUS_YEAR else MonthSource.AVERAGE)
+                    // Laufender Monat ohne Werte (z. B. noch nicht abgelesen): ganz geschätzt
+                    m == current && gridImport[m] == null ->
+                        AdvanceMonth(m, previous ?: average, if (previous != null) MonthSource.PREVIOUS_YEAR else MonthSource.AVERAGE)
                     m == current -> {
-                        val soFar = gridImport[m] ?: 0.0
+                        val soFar = gridImport.getValue(m)
                         val days = m.lengthOfMonth().toDouble()
                         val elapsed = (today.dayOfMonth - 1).toDouble()
                         val rest = when {
@@ -91,7 +95,7 @@ data class PowerAdvanceCheck(
                 }
             }
             val paid = (months.indexOfFirst { it.month == current } + 1).coerceIn(0, 12)
-            return PowerAdvanceCheck(start, months, pricePerKwhCent, baseFeePerMonth, advance, paid)
+            return AdvanceCheck(start, months, pricePerUnit, baseFeePerMonth, advance, paid)
         }
     }
 }

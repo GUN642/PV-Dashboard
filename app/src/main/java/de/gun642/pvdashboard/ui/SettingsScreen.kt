@@ -152,6 +152,20 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
             NumberField(s.waterBaseFeePerMonth, { v -> vm.updateSettings { copy(waterBaseFeePerMonth = v) } }, "Grundgebühr", "€/Monat")
+            Spacer(Modifier.height(8.dp))
+            NumberField(s.waterAdvance, { v -> vm.updateSettings { copy(waterAdvance = v) } }, "Monatlicher Abschlag", "€/Monat")
+            Spacer(Modifier.height(8.dp))
+            Label("Abrechnungszeitraum beginnt im")
+            Spacer(Modifier.height(6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                (1..12).forEach { m ->
+                    Pill(
+                        java.time.Month.of(m).getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(3),
+                        s.waterBillingStartMonth == m,
+                        { vm.updateSettings { copy(waterBillingStartMonth = m) } },
+                    )
+                }
+            }
             Spacer(Modifier.height(6.dp))
             Hint("Abwasser wird meist nach der Frischwassermenge berechnet. Ohne getrennte Abwassergebühr einfach 0 eintragen.")
 
@@ -304,6 +318,27 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
             ) { v ->
                 vm.updateSettings { copy(contractReminders = v) }
                 if (v) requestNotifications()
+            }
+            Toggle(
+                "Wöchentlich an Zählerstände erinnern",
+                "Strom und Wasser ablesen – macht Verbrauch und Abschlag-Check genauer",
+                s.meterReminder,
+            ) { v ->
+                vm.updateSettings { copy(meterReminder = v) }
+                if (v) requestNotifications()
+            }
+            if (s.meterReminder) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    java.time.DayOfWeek.entries.forEach { d ->
+                        Pill(
+                            d.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY),
+                            s.meterReminderDay == d.value,
+                            { vm.updateSettings { copy(meterReminderDay = d.value) } },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Hint("Die Erinnerung kommt am gewählten Tag ab 9 Uhr – nicht, wenn in den letzten drei Tagen schon beide Zähler eingetragen wurden.")
             }
             Spacer(Modifier.height(8.dp))
             NumberField(s.leakWarnPercent.toDouble(), { v -> vm.updateSettings { copy(leakWarnPercent = v.toInt().coerceIn(10, 500)) } }, "Wasser-Warnung ab Mehrverbrauch", "%")

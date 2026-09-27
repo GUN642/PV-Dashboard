@@ -93,6 +93,13 @@ data class AppSettings(
     /** Wasser-Warnung ab so viel Prozent über dem Durchschnitt */
     val leakWarnPercent: Int = 50,
     val contractReminders: Boolean = true,
+    /** Wöchentliche Erinnerung an die Zählerablesung */
+    val meterReminder: Boolean = false,
+    /** Wochentag der Erinnerung (1 = Montag … 7 = Sonntag) */
+    val meterReminderDay: Int = 7,
+    /** Wasser: monatlicher Abschlag in € (0 = aus dem Finanzposten „Wasser“) und Beginn der Abrechnung */
+    val waterAdvance: Double = 0.0,
+    val waterBillingStartMonth: Int = 1,
     val contractSort: de.gun642.pvdashboard.contracts.ContractSort = de.gun642.pvdashboard.contracts.ContractSort.DEADLINE,
     // Widget
     val widgetDark: Boolean = true,
@@ -191,6 +198,10 @@ class SettingsRepository(context: Context) {
             surplusExportW = prefs.getInt("surplus_export", d.surplusExportW),
             leakWarnPercent = prefs.getInt("leak_warn_percent", d.leakWarnPercent),
             contractReminders = prefs.getBoolean("contract_reminders", d.contractReminders),
+            meterReminder = prefs.getBoolean("meter_reminder", d.meterReminder),
+            meterReminderDay = prefs.getInt("meter_reminder_day", d.meterReminderDay),
+            waterAdvance = double("water_advance") ?: d.waterAdvance,
+            waterBillingStartMonth = prefs.getInt("water_billing_start_month", d.waterBillingStartMonth),
             contractSort = enumOf("contract_sort", d.contractSort),
             widgetDark = prefs.getBoolean("widget_dark", d.widgetDark),
             widgetOpacity = prefs.getInt("widget_opacity", d.widgetOpacity),
@@ -241,6 +252,10 @@ class SettingsRepository(context: Context) {
         e.putInt("surplus_export", s.surplusExportW.coerceIn(0, 30_000))
         e.putInt("leak_warn_percent", s.leakWarnPercent.coerceIn(10, 500))
         e.putBoolean("contract_reminders", s.contractReminders)
+        e.putBoolean("meter_reminder", s.meterReminder)
+        e.putInt("meter_reminder_day", s.meterReminderDay.coerceIn(1, 7))
+        putDouble("water_advance", s.waterAdvance)
+        e.putInt("water_billing_start_month", s.waterBillingStartMonth.coerceIn(1, 12))
         e.putString("contract_sort", s.contractSort.name)
         e.putBoolean("widget_dark", s.widgetDark)
         e.putInt("widget_opacity", s.widgetOpacity.coerceIn(0, 100))

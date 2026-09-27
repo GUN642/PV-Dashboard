@@ -1,5 +1,9 @@
 package de.gun642.pvdashboard.ui
 
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -46,7 +50,10 @@ private const val MAX_CURRENT = 16
 @Composable
 fun WallboxScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Unit) {
     val c = VoidTheme.colors
-    LaunchedEffect(settings.hasCloud) { vm.loadWallbox() }
+    LaunchedEffect(settings.hasCloud) {
+        vm.loadWallbox()
+        vm.loadChargeLog()
+    }
     var confirmMode by remember { mutableStateOf<WallboxMode?>(null) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -82,6 +89,7 @@ fun WallboxScreen(vm: MainViewModel, settings: AppSettings, onSettings: () -> Un
                     Text("ROHDATEN", style = MaterialTheme.typography.labelLarge, color = c.accent)
                 }
             }
+            if (settings.hasCloud) ChargeLogTile(vm, settings)
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -204,5 +212,78 @@ private fun SolarTile(vm: MainViewModel, wb: WallboxInfo) {
                 Pill("$selected A übernehmen", selected = true, onClick = { if (!vm.wallboxBusy) vm.setWallboxMinCurrent(selected.toDouble()) })
             }
         }
+    }
+}
+
+/** Ladelog: Ladevorgänge eines Monats mit Solaranteil und Kosten, als PDF exportierbar. */
+@Composable
+private fun ChargeLogTile(vm: MainViewModel, settings: AppSettings) {
+    val c = VoidTheme.colors
+    val de = java.util.Locale.GERMANY
+    val month = vm.chargeMonth
+    val log = vm.chargeLog
+    val price = settings.pricePerKwhCent
+    val feedIn = settings.feedInCent
+    val pdfSaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null) vm.exportChargePdf(uri)
+    }
+    Tile(Modifier.fillMaxWidth()) {
+        Label("Ladelog")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { vm.shiftChargeMonth(-1) }) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Vormonat", tint = c.text)
+            }
+            Text(
+                month.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", de)),
+                style = MaterialTheme.typography.titleMedium, color = c.text,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.weight(1f),
+            )
+            val hasNext = month.isBefore(java.time.YearMonth.now())
+            IconButton(onClick = { vm.shiftChargeMonth(1) }, enabled = hasNext) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Folgemonat", tint = if (hasNext) c.text else c.divider)
+            }
+        }
+        vm.chargeError?.let { Text(it, color = c.accent, style = MaterialTheme.typography.bodyMedium) }
+        if (log == null) {
+            Label(if (vm.chargeLoading) "Lade Ladevorgänge …" else "Keine Daten")
+            return@Tile
+        }
+        BigValue(String.format(de, "%.1f", log.kwh), "kWh", size = 44)
+        Label(String.format(de, "%d Ladevorgänge · %.0f %% eigener Strom", log.sessions.size, log.solarShare * 100))
+        Spacer(Modifier.height(8.dp))
+        DotBar(log.solarShare.toFloat(), Modifier.fillMaxWidth().height(10.dp), dots = 30, color = EnergyColors.gridExport)
+        Spacer(Modifier.height(8.dp))
+        ValueRow("Eigener Strom", formatKwh(log.solarKwh), dot = EnergyColors.gridExport)
+        ValueRow("Netzstrom", formatKwh(log.gridKwh), dot = EnergyColors.gridImport)
+        if (price > 0) {
+            Hairline()
+            ValueRow("Netzstrom × ${String.format(de, "%.2f", price)} ct", formatEuro(log.sessions.sumOf { it.gridCost(price) }))
+            if (feedIn > 0) ValueRow("Entgangene Einspeisung", formatEuro(log.sessions.sumOf { it.lostFeedIn(feedIn) }))
+            ValueRow("Kosten", formatEuro(log.cost(price, feedIn)), emphasize = true)
+        }
+        if (log.sessions.isNotEmpty()) {
+            Hairline()
+            val dateF = java.time.format.DateTimeFormatter.ofPattern("EE dd.MM.", de)
+            val timeF = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+            log.sessions.forEach { s ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(s.start.format(dateF), color = c.text, style = MaterialTheme.typography.bodyLarge)
+                        Label("${s.start.format(timeF)}–${s.end.format(timeF)} · ${String.format(de, "%.0f %%", s.solarShare * 100)} eigen")
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(String.format(de, "%.1f kWh", s.kwh), color = c.text, style = MaterialTheme.typography.bodyLarge)
+                        if (price > 0) Label(formatEuro(s.cost(price, feedIn)))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("PDF speichern", selected = false, onClick = { pdfSaver.launch(vm.chargePdfName()) })
+            Pill("PDF teilen", selected = false, onClick = { vm.shareChargePdf() })
+        }
+        Spacer(Modifier.height(6.dp))
+        Label("Aus stündlichen SENEC-Werten · Zeiten auf die Stunde genau")
     }
 }

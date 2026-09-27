@@ -46,7 +46,7 @@ object Notifier {
         )
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_REMINDERS, "Erinnerungen", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Kündigungsfristen von Verträgen"
+                description = "Kündigungsfristen und Zählerablesung"
             }
         )
     }
@@ -84,6 +84,7 @@ object Notifier {
 object BackgroundChecks {
     private const val SURPLUS = "surplus_check"
     private const val REMINDERS = "contract_reminders"
+    private const val METER = "meter_reminder"
 
     fun apply(context: Context, s: AppSettings) {
         val wm = WorkManager.getInstance(context)
@@ -100,6 +101,13 @@ object BackgroundChecks {
             wm.enqueueUniquePeriodicWork(REMINDERS, ExistingPeriodicWorkPolicy.KEEP, request)
         } else {
             wm.cancelUniqueWork(REMINDERS)
+        }
+        if (s.meterReminder) {
+            // Alle 3 Stunden nachsehen, ob heute der Ablese-Tag ist – die Nachricht kommt nur einmal am Tag
+            val request = PeriodicWorkRequestBuilder<MeterReminderWorker>(3, TimeUnit.HOURS).build()
+            wm.enqueueUniquePeriodicWork(METER, ExistingPeriodicWorkPolicy.KEEP, request)
+        } else {
+            wm.cancelUniqueWork(METER)
         }
     }
 }
@@ -206,6 +214,45 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
         }
         state.edit().putStringSet("reminded", done).apply()
+        return Result.success()
+    }
+}
+
+/** Soll heute an die Zählerablesung erinnert werden? */
+object MeterReminder {
+    fun due(
+        today: java.time.LocalDateTime,
+        weekday: Int,
+        lastNotified: LocalDate?,
+        /** Letzte Ablesung je Zähler, der überhaupt genutzt wird */
+        lastReadings: List<LocalDate>,
+    ): Boolean {
+        if (today.dayOfWeek.value != weekday || today.hour < 9) return false
+        if (lastNotified == today.toLocalDate()) return false
+        // Schon abgelesen? Alle Zähler mit Werten in den letzten 3 Tagen
+        val recent = lastReadings.isNotEmpty() && lastReadings.all { !it.isBefore(today.toLocalDate().minusDays(3)) }
+        return !recent
+    }
+}
+
+/** Wöchentliche Erinnerung an die Zählerstände (Strom und Wasser). */
+class MeterReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val s = SettingsRepository(applicationContext).settings.value
+        if (!s.meterReminder) return Result.success()
+        val state = applicationContext.getSharedPreferences("notify_state", Context.MODE_PRIVATE)
+        val last = state.getString("meter_reminded", null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val readings = de.gun642.pvdashboard.meters.MeterStore(applicationContext).load()
+        val lastDates = de.gun642.pvdashboard.meters.MeterType.entries.mapNotNull { t -> readings[t].orEmpty().maxOfOrNull { it.date } }
+        if (MeterReminder.due(java.time.LocalDateTime.now(), s.meterReminderDay, last, lastDates)) {
+            Notifier.show(
+                applicationContext, 3001, Notifier.CHANNEL_REMINDERS,
+                "Zählerstände ablesen",
+                "Trag heute die Stände von Strom- und Wasserzähler ein – für Verbrauch, Leck-Warnung und Abschlag-Check.",
+                tab = "HOME",
+            )
+            state.edit().putString("meter_reminded", LocalDate.now().toString()).apply()
+        }
         return Result.success()
     }
 }
