@@ -4,6 +4,8 @@ import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,12 +82,27 @@ fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit, onShare: (java.io.
                         Screen.RAW -> RawDataScreen(vm.rawTitle, vm.rawText) { vm.screen = Screen.MAIN }
                         Screen.MAIN -> {
                             val openSettings = { vm.screen = Screen.SETTINGS }
-                            when (vm.tab) {
-                                Tab.LIVE -> LiveScreen(vm, openSettings) { vm.tab = Tab.WALLBOX }
-                                Tab.STATS -> StatsScreen(vm, settings, openSettings)
-                                Tab.WALLBOX -> WallboxScreen(vm, settings, openSettings)
-                                Tab.WEATHER -> WeatherScreen(vm, settings, openSettings)
-                                Tab.HOME -> MetersScreen(vm, settings, openSettings)
+                            // Wischen wechselt die Tabs; Tipp auf die Leiste springt direkt hin
+                            val pager = rememberPagerState(initialPage = vm.tab.ordinal) { Tab.entries.size }
+                            LaunchedEffect(vm.tab) {
+                                val target = vm.tab.ordinal
+                                if (pager.currentPage != target) {
+                                    if (kotlin.math.abs(pager.currentPage - target) == 1) pager.animateScrollToPage(target)
+                                    else pager.scrollToPage(target)
+                                }
+                            }
+                            LaunchedEffect(pager.settledPage) {
+                                val tab = Tab.entries[pager.settledPage]
+                                if (vm.tab != tab) vm.tab = tab
+                            }
+                            HorizontalPager(pager, Modifier.fillMaxSize(), key = { Tab.entries[it].name }) { page ->
+                                when (Tab.entries[page]) {
+                                    Tab.LIVE -> LiveScreen(vm, openSettings) { vm.tab = Tab.WALLBOX }
+                                    Tab.STATS -> StatsScreen(vm, settings, openSettings)
+                                    Tab.WALLBOX -> WallboxScreen(vm, settings, openSettings)
+                                    Tab.WEATHER -> WeatherScreen(vm, settings, openSettings)
+                                    Tab.HOME -> MetersScreen(vm, settings, openSettings)
+                                }
                             }
                         }
                     }
