@@ -103,4 +103,6 @@ data class StatsResult(
     val rawJson: String,
     /** Beginn der Aufzeichnung (für Soll-Werte im Gesamtzeitraum) */
     val dataStart: LocalDate? = null,
+    /** Tag: Länge eines Balkens in Minuten (15 oder 60); sonst 0 */
+    val bucketMinutes: Int = 0,
 )

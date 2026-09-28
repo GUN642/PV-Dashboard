@@ -57,4 +57,18 @@ class YearCompareTest {
         assertTrue(YearCompare.available(result(prev, months(0.0, 100.0), LocalDate.of(2025, 2, 10))))
         assertFalse(YearCompare.available(result(prev, months(0.0), null)))
     }
+
+    @Test
+    fun toDateForQuarterHoursOfRunningDay() {
+        val today = LocalDate.of(2026, 9, 28)
+        val period = Period(PeriodType.DAY, today)
+        val quarters = (0 until 96).map { StatsBucket(it, "", EnergyTotals(pv = 1.0)) }
+        // 10:07 Uhr: 40 volle Viertelstunden + 7/15 der laufenden
+        val v = YearCompare.toDate(period, quarters, LocalDateTime.of(2026, 9, 28, 10, 7))
+        assertEquals(40 + 7.0 / 15, v, 1e-9)
+        // Unterschiedliche Auflösung: kein Vergleich je Balken
+        val hours = (0 until 24).map { StatsBucket(it, "", EnergyTotals(pv = 1.0)) }
+        assertEquals(96, YearCompare.bucketValues(quarters, hours).size)
+        assertEquals(0.0, YearCompare.bucketValues(quarters, hours).sum(), 0.0)
+    }
 }

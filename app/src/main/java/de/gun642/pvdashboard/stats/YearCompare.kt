@@ -18,6 +18,8 @@ object YearCompare {
 
     /** Vorjahres-PV je Balken, über den Index zugeordnet (Stunde, Tag bzw. Monat). */
     fun bucketValues(current: List<StatsBucket>, previous: List<StatsBucket>): List<Double> {
+        // Unterschiedliche Auflösung (z. B. Viertelstunden gegen Stunden): kein Vergleich je Balken
+        if (current.size != previous.size) return current.map { 0.0 }
         val byIndex = previous.associate { it.index to it.totals.pv }
         return current.map { byIndex[it.index] ?: 0.0 }
     }
@@ -32,7 +34,12 @@ object YearCompare {
         if (period.start.isAfter(today)) return 0.0
         val hourOfDay = now.hour + now.minute / 60.0
         val (current, fraction) = when (period.type) {
-            PeriodType.DAY -> now.hour to now.minute / 60.0
+            PeriodType.DAY -> {
+                // Balkenlänge aus der Anzahl der Balken (24 = Stunden, 96 = Viertelstunden)
+                val minutes = if (previous.size > 24) 1440 / previous.size else 60
+                val minuteOfDay = now.hour * 60 + now.minute
+                minuteOfDay / minutes to (minuteOfDay % minutes) / minutes.toDouble()
+            }
             PeriodType.MONTH -> now.dayOfMonth to hourOfDay / 24
             PeriodType.YEAR -> now.monthValue to (now.dayOfMonth - 1 + hourOfDay / 24) / today.lengthOfMonth()
             PeriodType.TOTAL -> return previous.sumOf { it.totals.pv }

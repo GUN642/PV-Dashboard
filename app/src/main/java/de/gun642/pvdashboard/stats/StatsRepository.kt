@@ -31,17 +31,19 @@ class StatsRepository(private val cloud: SenecCloud) {
 
     private suspend fun loadRange(period: Period, zone: ZoneId, dataStart: LocalDate?): StatsResult {
         val (from, to) = period.instants(zone)
+        // Tag: 5-Minuten-Werte zu Viertelstunden zusammenfassen; falls nicht angeboten, Stundenwerte
         val resolutions = when (period.type) {
-            PeriodType.DAY -> listOf("HOUR", "FIVE_MINUTES")
-            PeriodType.MONTH -> listOf("DAY")
-            else -> listOf("MONTH")
+            PeriodType.DAY -> listOf("FIVE_MINUTES" to 15, "HOUR" to 60)
+            PeriodType.MONTH -> listOf("DAY" to 60)
+            else -> listOf("MONTH" to 60)
         }
         var lastError: Exception? = null
-        for (resolution in resolutions) {
+        for ((resolution, minutes) in resolutions) {
             try {
                 val series = cloud.measurements(resolution, from, to)
-                val buckets = bucketize(period, series.points, zone)
+                val buckets = bucketize(period, series.points, zone, minutes)
                 return StatsResult(
+                    bucketMinutes = if (period.type == PeriodType.DAY) minutes else 0,
                     period = period,
                     totals = buckets.fold(EnergyTotals()) { acc, b -> acc + b.totals },
                     buckets = buckets,
@@ -89,10 +91,14 @@ class StatsRepository(private val cloud: SenecCloud) {
     companion object {
         const val SOC_KEY = "BATTERY_LEVEL_IN_PERCENT"
 
-        /** Ordnet Messpunkte den Balken des Zeitraums zu (Stunde, Tag oder Monat, lokal). */
-        fun bucketize(period: Period, points: List<MeasurementPoint>, zone: ZoneId): List<StatsBucket> {
+        /**
+         * Ordnet Messpunkte den Balken des Zeitraums zu (Tag: je [dayMinutes] Minuten, sonst Tag bzw. Monat, lokal).
+         * Beim Tag ist der Index die Nummer des Zeitabschnitts (bei 15 Minuten 0–95), die Beschriftung die Stunde.
+         */
+        fun bucketize(period: Period, points: List<MeasurementPoint>, zone: ZoneId, dayMinutes: Int = 60): List<StatsBucket> {
+            val perHour = 60 / dayMinutes
             val slots = when (period.type) {
-                PeriodType.DAY -> (0..23).map { it to "%02d".format(it) }
+                PeriodType.DAY -> (0 until 24 * perHour).map { it to "%02d".format(it / perHour) }
                 PeriodType.MONTH -> (1..period.start.lengthOfMonth()).map { it to it.toString() }
                 PeriodType.YEAR -> (1..12).map { m ->
                     m to java.time.Month.of(m).getDisplayName(TextStyle.SHORT, Locale.GERMANY).take(3)
@@ -103,7 +109,7 @@ class StatsRepository(private val cloud: SenecCloud) {
             // Ladestand ist ein Momentanwert: Mittelwert statt Summe
             val soc = mutableMapOf<Int, MutableList<Double>>()
             for (p in points) {
-                val key = slotOf(period.type, p.start, zone)
+                val key = slotOf(period.type, p.start, zone, dayMinutes)
                 if (key !in sums) continue
                 sums[key] = sums.getValue(key) + EnergyTotals.fromMeasurements(p.values)
                 p.values[SOC_KEY]?.let { soc.getOrPut(key) { mutableListOf() } += it }
@@ -111,10 +117,10 @@ class StatsRepository(private val cloud: SenecCloud) {
             return slots.map { (index, label) -> StatsBucket(index, label, sums.getValue(index), soc[index]?.average()) }
         }
 
-        private fun slotOf(type: PeriodType, start: Instant, zone: ZoneId): Int {
+        private fun slotOf(type: PeriodType, start: Instant, zone: ZoneId, dayMinutes: Int): Int {
             val local = ZonedDateTime.ofInstant(start, zone)
             return when (type) {
-                PeriodType.DAY -> local.hour
+                PeriodType.DAY -> (local.hour * 60 + local.minute) / dayMinutes
                 PeriodType.MONTH -> local.dayOfMonth
                 PeriodType.YEAR -> local.monthValue
                 PeriodType.TOTAL -> local.year

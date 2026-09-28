@@ -73,4 +73,20 @@ class StatsTest {
         assertEquals(LocalDate.of(2024, 12, 1), p.previous().start)
         assertEquals(LocalDate.of(2025, 2, 1), p.end)
     }
+
+    @Test
+    fun bucketsFiveMinuteValuesIntoQuarterHours() {
+        val period = Period(PeriodType.DAY, LocalDate.of(2025, 7, 1))
+        val points = listOf(
+            point("2025-07-01T08:00:00Z", 0.1),
+            point("2025-07-01T08:10:00Z", 0.2),
+            point("2025-07-01T08:15:00Z", 0.4),
+        )
+        val buckets = StatsRepository.bucketize(period, points, berlin, dayMinutes = 15)
+        assertEquals(96, buckets.size)
+        // 08:00 UTC = 10:00 Uhr → Abschnitt 40; 08:15 → 41
+        assertEquals(0.3, buckets[40].totals.pv, 1e-9)
+        assertEquals(0.4, buckets[41].totals.pv, 1e-9)
+        assertEquals("10", buckets[41].label)
+    }
 }

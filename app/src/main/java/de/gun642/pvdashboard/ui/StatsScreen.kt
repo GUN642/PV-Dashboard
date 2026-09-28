@@ -164,28 +164,31 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
             previous != null -> "Vorjahr (${previous.period.label})"
             else -> "PVGIS-Soll"
         }
+        // Tag: mittlere Leistung in kW je Abschnitt (kWh × Abschnitte pro Stunde), sonst Energie in kWh
+        val day = r.period.type == PeriodType.DAY
+        val factor = if (day && r.bucketMinutes in 1..59) 60.0 / r.bucketMinutes else 1.0
         BarChart(
-            targets = targets,
+            targets = targets?.map { it * factor },
             labels = r.buckets.map { it.label },
-            series = listOf(EnergyColors.pv to r.buckets.map { it.totals.pv }) +
-                shown.map { s -> seriesColor(s) to r.buckets.map { s.value(it.totals) } },
+            series = listOf(EnergyColors.pv to r.buckets.map { it.totals.pv * factor }) +
+                shown.map { s -> seriesColor(s) to r.buckets.map { s.value(it.totals) * factor } },
             labelEvery = when (r.period.type) {
-                PeriodType.DAY -> 3
+                PeriodType.DAY -> 3 * (60 / r.bucketMinutes.coerceIn(1, 60))
                 PeriodType.MONTH -> 5
                 else -> 1
             },
             seriesNames = listOf("Erzeugung") + shown.map { it.label },
             targetName = targetName,
-            unit = "kWh",
+            unit = if (day) "kW" else "kWh",
             // Mindest-Skala je Zeitraum: kleine Werte bleiben klein (kein aufgeblähtes Messrauschen)
             minScale = when (r.period.type) {
-                // Tag: fest 0–10 (kWh je Stunde = mittlere Leistung in kW), bei mehr automatisch erweitert
+                // Tag: fest 0–10 kW (mittlere Leistung), bei mehr automatisch erweitert
                 PeriodType.DAY -> 10.0
                 PeriodType.MONTH -> 5.0
                 PeriodType.YEAR -> 50.0
                 PeriodType.TOTAL -> 500.0
             },
-            detailLabels = r.buckets.map { b -> bucketTitle(r.period, b.index) },
+            detailLabels = r.buckets.map { b -> bucketTitle(r.period, b.index, r.bucketMinutes) },
             lines = listOfNotNull(
                 ChartLine(r.buckets.map { it.totals.autarky }, EnergyColors.autarky, "Autarkie").takeIf { vm.showAutarky },
                 ChartLine(r.buckets.map { b -> b.batterySoc?.let { it / 100 } }, EnergyColors.battery, socLabel)
@@ -293,8 +296,13 @@ private fun CostTile(tariff: Tariff, cost: CostSummary, r: StatsResult, onSettin
 }
 
 /** Überschrift der Detailanzeige für einen Balken. */
-private fun bucketTitle(period: Period, index: Int): String = when (period.type) {
-    PeriodType.DAY -> String.format(Locale.GERMANY, "%02d:00–%02d:00 Uhr", index, (index + 1) % 24)
+private fun bucketTitle(period: Period, index: Int, bucketMinutes: Int): String = when (period.type) {
+    PeriodType.DAY -> {
+        val minutes = bucketMinutes.takeIf { it > 0 } ?: 60
+        val from = index * minutes
+        val to = (from + minutes) % 1440
+        String.format(Locale.GERMANY, "%02d:%02d–%02d:%02d Uhr · Ø Leistung", from / 60, from % 60, to / 60, to % 60)
+    }
     PeriodType.MONTH -> period.start.withDayOfMonth(index)
         .format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM", Locale.GERMANY))
     PeriodType.YEAR -> java.time.YearMonth.of(period.start.year, index)

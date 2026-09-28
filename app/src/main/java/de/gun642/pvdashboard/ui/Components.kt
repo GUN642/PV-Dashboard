@@ -413,13 +413,10 @@ fun BarChart(
                 lines.forEach { line ->
                     val points = line.values.mapIndexed { i, f -> f?.let { Offset(leftPx + slot * i + slot / 2, ly(it)) } }
                     points.zipWithNext().forEach { (a, b) ->
-                        if (a != null && b != null) drawLine(line.color.copy(alpha = 0.8f), a, b, strokeWidth = lineWidth)
+                        if (a != null && b != null) drawLine(line.color.copy(alpha = 0.85f), a, b, strokeWidth = lineWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                     }
-                    points.forEachIndexed { i, p ->
-                        if (p == null) return@forEachIndexed
-                        val r = if (selected == i) pointRadius * 1.6f else pointRadius
-                        drawCircle(line.color, r, p)
-                    }
+                    // Ohne Punkte – nur der angetippte Abschnitt wird markiert
+                    selected?.let { i -> points.getOrNull(i)?.let { p -> drawCircle(line.color, pointRadius, p) } }
                 }
             }
 
