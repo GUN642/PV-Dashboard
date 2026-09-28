@@ -19,7 +19,7 @@ object YearCompare {
     /** Vorjahres-PV je Balken, über den Index zugeordnet (Stunde, Tag bzw. Monat). */
     fun bucketValues(current: List<StatsBucket>, previous: List<StatsBucket>): List<Double> {
         // Unterschiedliche Auflösung (z. B. Viertelstunden gegen Stunden): kein Vergleich je Balken
-        if (current.size != previous.size) return current.map { 0.0 }
+        if ((current.size > 31) != (previous.size > 31)) return current.map { 0.0 }
         val byIndex = previous.associate { it.index to it.totals.pv }
         return current.map { byIndex[it.index] ?: 0.0 }
     }
