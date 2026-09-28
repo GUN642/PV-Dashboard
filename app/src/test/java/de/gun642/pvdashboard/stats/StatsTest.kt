@@ -38,6 +38,9 @@ class StatsTest {
         val buckets = StatsRepository.bucketize(period, points, berlin)
         assertEquals(24, buckets.size)
         assertEquals(0.3, buckets[10].totals.pv, 1e-9) // 08:00 UTC = 10 Uhr
+        // Ladestand wird gemittelt, nicht summiert
+        assertEquals(80.0, buckets[10].batterySoc!!, 1e-9)
+        assertEquals(null, buckets[0].batterySoc)
         assertEquals(0.4, buckets[11].totals.pv, 1e-9)
     }
 

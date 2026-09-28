@@ -299,12 +299,15 @@ fun Legend(items: List<Pair<String, Color>>) {
     }
 }
 
+/** Linie in Prozent (Werte 0..1, null = Lücke) über den Balken. */
+data class ChartLine(val values: List<Double?>, val color: Color, val name: String)
+
 /**
  * Säulendiagramm mit Achsen und Antippen-für-Details.
  *
  * - [series]: eine oder mehrere Reihen nebeneinander je Balken, [seriesNames] für die Detailanzeige
  * - [targets]: optionaler Soll-Wert je Balken (z. B. PVGIS/Vorjahr), als Querstrich gezeichnet
- * - [line]: optionale Linie in Prozent (0..1, z. B. Autarkie) mit eigener Achse rechts; null = Lücke
+ * - [lines]: optionale Linien in Prozent (0..1, z. B. Autarkie, Akku-Ladestand) mit gemeinsamer Achse rechts; null = Lücke
  * - [minScale]: die Y-Achse reicht mindestens bis hierhin, damit Messrauschen nicht die volle Höhe füllt
  * - [detailLabels]: Überschrift in der Detailanzeige je Balken (sonst [labels])
  */
@@ -320,9 +323,7 @@ fun BarChart(
     unit: String = "",
     minScale: Double = 0.0,
     detailLabels: List<String>? = null,
-    line: List<Double?>? = null,
-    lineColor: Color = VoidTheme.colors.text,
-    lineName: String = "",
+    lines: List<ChartLine> = emptyList(),
 ) {
     val c = VoidTheme.colors
     val scale = ChartScale.of((series.flatMap { it.second } + targets.orEmpty()).maxOrNull() ?: 0.0, minScale)
@@ -330,7 +331,7 @@ fun BarChart(
     val density = LocalDensity.current
     val labelPx = with(density) { 9.sp.toPx() }
     val leftPx = with(density) { 34.dp.toPx() }
-    val rightPx = if (line != null) with(density) { 34.dp.toPx() } else 0f
+    val rightPx = if (lines.isNotEmpty()) with(density) { 34.dp.toPx() } else 0f
     val lineWidth = with(density) { 2.dp.toPx() }
     val pointRadius = with(density) { 3.dp.toPx() }
     val bottomPx = with(density) { 16.dp.toPx() }
@@ -401,22 +402,24 @@ fun BarChart(
             }
 
             // Prozent-Linie mit Achse rechts (0 % unten, 100 % oben)
-            if (line != null) {
+            if (lines.isNotEmpty()) {
                 fun ly(f: Double) = (topPx + plotH * (1 - f.coerceIn(0.0, 1.0))).toFloat()
                 paint.textAlign = android.graphics.Paint.Align.LEFT
-                paint.color = lineColor.toArgb()
+                paint.color = (if (lines.size == 1) lines[0].color else muted).toArgb()
                 listOf(0.0, 0.5, 1.0).forEach { f ->
                     native.drawText(String.format(Locale.GERMANY, "%.0f%%", f * 100), leftPx + plotW + 6f, ly(f) + labelPx / 3, paint)
                 }
                 paint.color = muted.toArgb()
-                val points = line.mapIndexed { i, f -> f?.let { Offset(leftPx + slot * i + slot / 2, ly(it)) } }
-                points.zipWithNext().forEach { (a, b) ->
-                    if (a != null && b != null) drawLine(lineColor.copy(alpha = 0.8f), a, b, strokeWidth = lineWidth)
-                }
-                points.forEachIndexed { i, p ->
-                    if (p == null) return@forEachIndexed
-                    val r = if (selected == i) pointRadius * 1.6f else pointRadius
-                    drawCircle(lineColor, r, p)
+                lines.forEach { line ->
+                    val points = line.values.mapIndexed { i, f -> f?.let { Offset(leftPx + slot * i + slot / 2, ly(it)) } }
+                    points.zipWithNext().forEach { (a, b) ->
+                        if (a != null && b != null) drawLine(line.color.copy(alpha = 0.8f), a, b, strokeWidth = lineWidth)
+                    }
+                    points.forEachIndexed { i, p ->
+                        if (p == null) return@forEachIndexed
+                        val r = if (selected == i) pointRadius * 1.6f else pointRadius
+                        drawCircle(line.color, r, p)
+                    }
                 }
             }
 
@@ -454,12 +457,14 @@ fun BarChart(
                         Text(formatChartValue(t, unit), color = c.text, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                line?.getOrNull(index)?.let { f ->
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Dot(lineColor, 7.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(lineName, color = c.textMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        Text(formatPercent(f), color = c.text, style = MaterialTheme.typography.bodyMedium)
+                lines.forEach { line ->
+                    line.values.getOrNull(index)?.let { f ->
+                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Dot(line.color, 7.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(line.name, color = c.textMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            Text(formatPercent(f), color = c.text, style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }

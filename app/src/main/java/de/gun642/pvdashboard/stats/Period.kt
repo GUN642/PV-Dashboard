@@ -87,7 +87,13 @@ data class Period(val type: PeriodType, val anchor: LocalDate) {
 }
 
 /** Ein Balken im Diagramm, z. B. eine Stunde, ein Tag oder ein Monat. */
-data class StatsBucket(val index: Int, val label: String, val totals: EnergyTotals)
+data class StatsBucket(
+    val index: Int,
+    val label: String,
+    val totals: EnergyTotals,
+    /** Mittlerer Akku-Ladestand im Balken in % (null = nicht gemeldet) */
+    val batterySoc: Double? = null,
+)
 
 data class StatsResult(
     val period: Period,

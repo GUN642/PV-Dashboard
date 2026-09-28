@@ -128,6 +128,9 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
     // Vorjahr statt PVGIS, sobald Vorjahresdaten vorliegen
     val previous = vm.statsCompare?.takeIf { it.period == YearCompare.previousPeriod(r.period) && YearCompare.available(it) }
     val shown = EnergySeries.entries.filter { it in vm.chartSeries }
+    val hasSoc = r.buckets.any { it.batterySoc != null }
+    // Stunde: Ladestand je Stunde; Monat/Jahr: Tages- bzw. Monatsmittel
+    val socLabel = if (r.period.type == PeriodType.DAY) "Akku-Ladestand" else "Ø Akku-Ladestand"
 
     Tile(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -183,15 +186,18 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
                 PeriodType.TOTAL -> 500.0
             },
             detailLabels = r.buckets.map { b -> bucketTitle(r.period, b.index) },
-            line = if (vm.showAutarky) r.buckets.map { it.totals.autarky } else null,
-            lineColor = EnergyColors.autarky,
-            lineName = "Autarkie",
+            lines = listOfNotNull(
+                ChartLine(r.buckets.map { it.totals.autarky }, EnergyColors.autarky, "Autarkie").takeIf { vm.showAutarky },
+                ChartLine(r.buckets.map { b -> b.batterySoc?.let { it / 100 } }, EnergyColors.battery, socLabel)
+                    .takeIf { vm.showSoc && hasSoc },
+            ),
         )
         Spacer(Modifier.height(8.dp))
         Legend(
             listOf("Erzeugung" to EnergyColors.pv) +
                 shown.map { it.label to seriesColor(it) } +
                 (if (vm.showAutarky) listOf("Autarkie" to EnergyColors.autarky) else emptyList()) +
+                (if (vm.showSoc && hasSoc) listOf(socLabel to EnergyColors.battery) else emptyList()) +
                 when {
                     previous != null -> listOf("Vorjahr" to c.textMuted)
                     pvgis != null && r.period.type != PeriodType.DAY -> listOf("PVGIS" to c.textMuted)
@@ -210,6 +216,10 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
         }
         Hairline()
         ToggleRow("Autarkie", formatPercent(t.autarky), EnergyColors.autarky, vm.showAutarky, emphasize = true) { vm.toggleAutarky() }
+        if (hasSoc) {
+            val avg = r.buckets.mapNotNull { it.batterySoc }.average() / 100
+            ToggleRow(socLabel, formatPercent(avg), EnergyColors.battery, vm.showSoc, emphasize = true) { vm.toggleSoc() }
+        }
         ValueRow("Eigenverbrauch", formatPercent(t.selfConsumption), emphasize = true)
     }
 

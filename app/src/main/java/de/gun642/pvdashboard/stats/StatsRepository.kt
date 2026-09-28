@@ -87,6 +87,8 @@ class StatsRepository(private val cloud: SenecCloud) {
     }
 
     companion object {
+        const val SOC_KEY = "BATTERY_LEVEL_IN_PERCENT"
+
         /** Ordnet Messpunkte den Balken des Zeitraums zu (Stunde, Tag oder Monat, lokal). */
         fun bucketize(period: Period, points: List<MeasurementPoint>, zone: ZoneId): List<StatsBucket> {
             val slots = when (period.type) {
@@ -98,11 +100,15 @@ class StatsRepository(private val cloud: SenecCloud) {
                 PeriodType.TOTAL -> emptyList()
             }
             val sums = slots.associate { it.first to EnergyTotals() }.toMutableMap()
+            // Ladestand ist ein Momentanwert: Mittelwert statt Summe
+            val soc = mutableMapOf<Int, MutableList<Double>>()
             for (p in points) {
                 val key = slotOf(period.type, p.start, zone)
-                if (key in sums) sums[key] = sums.getValue(key) + EnergyTotals.fromMeasurements(p.values)
+                if (key !in sums) continue
+                sums[key] = sums.getValue(key) + EnergyTotals.fromMeasurements(p.values)
+                p.values[SOC_KEY]?.let { soc.getOrPut(key) { mutableListOf() } += it }
             }
-            return slots.map { (index, label) -> StatsBucket(index, label, sums.getValue(index)) }
+            return slots.map { (index, label) -> StatsBucket(index, label, sums.getValue(index), soc[index]?.average()) }
         }
 
         private fun slotOf(type: PeriodType, start: Instant, zone: ZoneId): Int {

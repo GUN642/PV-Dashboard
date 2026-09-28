@@ -809,6 +809,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleAutarky() { showAutarky = !showAutarky }
 
+    /** Akku-Ladestand als Linie im Statistik-Diagramm */
+    var showSoc by mutableStateOf(true)
+        private set
+
+    fun toggleSoc() { showSoc = !showSoc }
+
     val tariff: Tariff
         get() = settings.value.let { Tariff(it.provider, it.baseFeePerMonth, it.pricePerKwhCent, it.feedInCent) }
 
