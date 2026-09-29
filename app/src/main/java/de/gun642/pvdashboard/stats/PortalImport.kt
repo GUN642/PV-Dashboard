@@ -47,8 +47,9 @@ object PortalImport {
 
     data class Result(
         val months: List<HistoryMonth>,
+        /** Ausgewertete Dateien (ohne Duplikate und überlappende) */
         val files: Int,
-        /** Nicht auswertbare oder überlappende Dateien */
+        /** Nicht auswertbare, doppelte oder überlappende Dateien */
         val skipped: Int,
         /** Monate mit fehlenden Tagen: Monat → Tage mit Werten */
         val incomplete: Map<YearMonth, Int>,
@@ -70,6 +71,7 @@ object PortalImport {
         val total = mutableMapOf<YearMonth, DoubleArray>()
         val days = mutableSetOf<LocalDate>()
         var previous: FileData? = null
+        var used = 0
         for (f in files) {
             val p = previous
             if (p != null) {
@@ -86,6 +88,7 @@ object PortalImport {
             }
             days += f.days
             previous = f
+            used++
         }
 
         val months = total.map { (month, v) ->
@@ -104,7 +107,7 @@ object PortalImport {
             val expected = if (cutoff != null && YearMonth.from(cutoff) == month) cutoff.dayOfMonth - 1 else month.lengthOfMonth()
             n < expected - 1
         }
-        return Result(months, files.size, skipped, incomplete.toSortedMap())
+        return Result(months, used, skipped, incomplete.toSortedMap())
     }
 
     private fun parseFile(text: String, cutoff: LocalDateTime?): FileData? {
