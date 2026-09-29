@@ -255,6 +255,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var loginRunning by mutableStateOf(false)
         private set
 
+    var diagnosing by mutableStateOf(false)
+        private set
+
+    /** Zeigt, welche Anlagen und Jahre die SENEC-Cloud für das Konto liefert (zur Fehlersuche bei fehlenden Vorjahren). */
+    fun diagnoseCloud() {
+        if (diagnosing) return
+        diagnosing = true
+        viewModelScope.launch {
+            try {
+                val year = java.time.LocalDate.now().year
+                showRaw("SENEC-Anlagen prüfen", cloud.diagnose((year - 5)..year))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Prüfung fehlgeschlagen: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                diagnosing = false
+            }
+        }
+    }
+
     fun testLogin() {
         if (loginRunning) return
         loginRunning = true

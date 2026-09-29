@@ -95,10 +95,11 @@ fun SettingsScreen(vm: MainViewModel, s: AppSettings, onBack: () -> Unit) {
                 keyboardType = KeyboardType.Password, visualTransformation = PasswordVisualTransformation(),
             )
             Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill("Anmelden & testen", selected = true, onClick = { vm.testLogin() })
                 if (s.hasCloud) Pill("Abmelden", selected = false, onClick = { password = ""; vm.logout() })
-                if (vm.loginRunning) CircularProgressIndicator(Modifier.size(20.dp), color = c.accent, strokeWidth = 2.dp)
+                if (s.hasCloud) Pill("Anlagen prüfen", selected = false, onClick = { vm.diagnoseCloud() })
+                if (vm.loginRunning || vm.diagnosing) CircularProgressIndicator(Modifier.padding(8.dp).size(20.dp), color = c.accent, strokeWidth = 2.dp)
             }
             vm.loginStatus?.let {
                 Spacer(Modifier.height(8.dp))

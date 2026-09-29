@@ -29,6 +29,9 @@ data class MeasurementPoint(val start: Instant, val durationSeconds: Long, val v
 
 data class MeasurementSeries(val points: List<MeasurementPoint>, val rawJson: String)
 
+/** Eine Anlage im SENEC-Konto (nach einem Speichertausch kann es mehrere geben) mit ihrem Aufzeichnungszeitraum. */
+data class CloudSystem(val id: String, val start: Instant?, val end: Instant?, val raw: String)
+
 /**
  * Zugriff auf die Daten der SENEC-App (funktioniert von überall, auch unterwegs).
  *
@@ -55,6 +58,56 @@ class SenecCloud(context: Context, private val credentials: () -> Pair<String, S
 
     fun clear() {
         prefs.edit().clear().apply()
+        systemsCache = null
+    }
+
+    @Volatile
+    private var systemsCache: List<CloudSystem>? = null
+
+    /** Alle Anlagen des Kontos mit Aufzeichnungszeitraum. */
+    suspend fun systems(): List<CloudSystem> = withContext(Dispatchers.IO) {
+        systemsCache?.let { return@withContext it }
+        val array = JSONArray(appGet("$SYSTEMS/systems/api/v1"))
+        val list = (0 until array.length()).mapNotNull { i ->
+            val o = array.optJSONObject(i) ?: return@mapNotNull null
+            val id = o.opt("id")?.toString() ?: return@mapNotNull null
+            val span = runCatching { JSONObject(appGet("$MEASURE/measurements/api/v1/systems/$id/data-availability/timespan?timezone=UTC")) }.getOrNull()
+            fun time(key: String) = span?.optLong(key, 0)?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it) }
+            CloudSystem(id, time("periodStartDateInMilliseconds"), time("periodEndDateInMilliseconds"), o.toString(2))
+        }
+        systemsCache = list
+        list
+    }
+
+    /**
+     * Prüft, was die SENEC-Cloud für das Konto herausgibt: alle Anlagen mit Zeitraum und je Jahr
+     * die Summe der PV-Erzeugung. Enthält keine Zugangsdaten.
+     */
+    suspend fun diagnose(years: IntRange): String = withContext(Dispatchers.IO) {
+        val out = StringBuilder()
+        val list = systems()
+        out.append("Anlagen im Konto: ${list.size}\n")
+        val zone = java.time.ZoneId.systemDefault()
+        list.forEach { sys ->
+            out.append("\n== Anlage ${sys.id}${if (sys.id == systemId()) " (wird von der App verwendet)" else ""}\n")
+            out.append("Aufzeichnung: ${sys.start ?: "?"} bis ${sys.end ?: "?"}\n")
+            for (year in years) {
+                val from = java.time.LocalDate.of(year, 1, 1).atStartOfDay(zone).toInstant()
+                val to = java.time.LocalDate.of(year + 1, 1, 1).atStartOfDay(zone).toInstant()
+                val text = try {
+                    val series = fetchMeasurements(sys.id, "MONTH", from, to, emptyList())
+                    val pv = series.points.sumOf { it.values["POWER_GENERATION"] ?: 0.0 }
+                    val months = series.points.count { (it.values["POWER_GENERATION"] ?: 0.0) > 0 }
+                    if (series.points.isEmpty()) "keine Daten" else String.format(java.util.Locale.GERMANY, "%,.0f kWh PV in %d Monaten", pv, months)
+                } catch (e: Exception) {
+                    "Fehler: ${e.message ?: e.javaClass.simpleName}"
+                }
+                out.append("  $year: $text\n")
+            }
+        }
+        out.append("\n--- Rohdaten der Anlagen ---\n")
+        list.forEach { out.append(it.raw).append('\n') }
+        out.toString()
     }
 
     suspend fun dashboard(): CloudDashboard = withContext(Dispatchers.IO) {
@@ -96,29 +149,55 @@ class SenecCloud(context: Context, private val credentials: () -> Pair<String, S
 
     /**
      * Energiewerte (kWh) je Intervall. [resolution] z. B. FIVE_MINUTES, HOUR, DAY, MONTH.
+     *
+     * Gibt es im Konto weitere (ältere) Anlagen – z. B. nach einem Speichertausch –, werden deren Werte
+     * für die Zeit vor Beginn der aktuellen Anlage dazugenommen, damit die Statistik lückenlos ist.
      */
     suspend fun measurements(resolution: String, from: Instant, to: Instant): MeasurementSeries =
         withContext(Dispatchers.IO) {
-            val wallboxes = wallboxIds()
-            val url = buildString {
-                append("$MEASURE/measurements/api/v1/systems/${systemId()}/measurements")
-                append("?resolution=").append(resolution)
-                append("&from=").append(Http.encode(from.toString()))
-                append("&to=").append(Http.encode(to.toString()))
-                if (wallboxes.isNotEmpty()) append("&wallboxIds=").append(Http.encode(wallboxes.joinToString(",")))
+            val primary = systemId()
+            val main = fetchMeasurements(primary, resolution, from, to, wallboxIds())
+            val all = runCatching { systems() }.getOrDefault(emptyList())
+            val primaryStart = all.firstOrNull { it.id == primary }?.start ?: return@withContext main
+            if (!from.isBefore(primaryStart)) return@withContext main
+            val older = all.filter { it.id != primary }
+            if (older.isEmpty()) return@withContext main
+
+            val clippedTo = minOf(to, primaryStart)
+            val extra = older.flatMap { sys ->
+                // Nur Zeiträume, in denen diese Anlage aufgezeichnet hat
+                val start = maxOf(from, sys.start ?: from)
+                val end = minOf(clippedTo, sys.end ?: clippedTo)
+                if (!end.isAfter(start)) emptyList()
+                else runCatching { fetchMeasurements(sys.id, resolution, start, end, emptyList()) }.getOrNull()?.let { listOf(it) }.orEmpty()
             }
-            val body = appGet(url)
-            MeasurementSeries(parseMeasurements(body), body)
+            if (extra.isEmpty()) return@withContext main
+            MeasurementSeries(
+                (extra.flatMap { it.points } + main.points).sortedBy { it.start },
+                extra.joinToString("\n") { "// ältere Anlage\n" + it.rawJson } + "\n// aktuelle Anlage\n" + main.rawJson,
+            )
         }
 
-    /** Beginn der Datenaufzeichnung der Anlage. */
+    private suspend fun fetchMeasurements(
+        system: String, resolution: String, from: Instant, to: Instant, wallboxes: List<String>,
+    ): MeasurementSeries {
+        val url = buildString {
+            append("$MEASURE/measurements/api/v1/systems/$system/measurements")
+            append("?resolution=").append(resolution)
+            append("&from=").append(Http.encode(from.toString()))
+            append("&to=").append(Http.encode(to.toString()))
+            if (wallboxes.isNotEmpty()) append("&wallboxIds=").append(Http.encode(wallboxes.joinToString(",")))
+        }
+        val body = appGet(url)
+        return MeasurementSeries(parseMeasurements(body), body)
+    }
+
+    /** Beginn der Datenaufzeichnung (früheste aller Anlagen im Konto). */
     suspend fun dataStart(): Instant? = withContext(Dispatchers.IO) {
-        if (prefs.contains("data_start")) return@withContext Instant.ofEpochMilli(prefs.getLong("data_start", 0))
-        val json = JSONObject(appGet("$MEASURE/measurements/api/v1/systems/${systemId()}/data-availability/timespan?timezone=UTC"))
-        if (!json.has("periodStartDateInMilliseconds")) return@withContext null
-        val start = json.getLong("periodStartDateInMilliseconds")
-        prefs.edit().putLong("data_start", start).apply()
-        Instant.ofEpochMilli(start)
+        if (prefs.contains("data_start_all")) return@withContext Instant.ofEpochMilli(prefs.getLong("data_start_all", 0))
+        val start = systems().mapNotNull { it.start }.minOrNull() ?: return@withContext null
+        prefs.edit().putLong("data_start_all", start.toEpochMilli()).apply()
+        start
     }
 
     // ---------- Wallbox-Steuerung ----------
