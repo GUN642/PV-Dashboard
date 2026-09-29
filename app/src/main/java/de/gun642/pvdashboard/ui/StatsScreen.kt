@@ -267,7 +267,7 @@ private fun ToggleRow(label: String, value: String, color: Color, selected: Bool
 @Composable
 private fun HistoryTile(vm: MainViewModel) {
     val c = VoidTheme.colors
-    val history = vm.history
+    val history = vm.legacyData
     var confirmDelete by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val importer = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),

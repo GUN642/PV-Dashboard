@@ -90,7 +90,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val s = settings.value
         if (s.hasCloud) s.senecEmail to s.senecPassword else null
     }
-    private val stats = StatsRepository(cloud) { history }
+    private val stats = StatsRepository(cloud) { legacyData }
 
     private val _events = MutableSharedFlow<UiEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<UiEvent> = _events
@@ -499,7 +499,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 repository.reload()
                 meterData = meterStore.load()
                 contracts = contractStore.load()
-                history = historyStore.load()
+                legacyData = historyStore.load()
                 stats.invalidate()
                 statsResult = null
                 statsCompare = null
@@ -551,12 +551,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val historyStore = HistoryStore(app)
 
     /** Monatswerte der früheren Anlage; ergänzen Jahr, Gesamt und Vorjahresvergleich. */
-    @Volatile
-    var history by mutableStateOf(historyStore.load())
+    var legacyData by mutableStateOf(historyStore.load())
         private set
 
     private fun applyHistory(list: List<HistoryMonth>) {
-        history = list
+        legacyData = list
         stats.invalidate()
         statsResult = null
         statsCompare = null
@@ -574,7 +573,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     message("Keine Monatswerte gefunden – Spalten: ${HistoryCsv.HEADER}")
                     return@launch
                 }
-                val merged = HistoryStore.merge(history, imported)
+                val merged = HistoryStore.merge(legacyData, imported)
                 withContext(Dispatchers.IO) { historyStore.save(merged) }
                 applyHistory(merged)
                 message("${imported.size} Monate importiert")
@@ -600,7 +599,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val file = withContext(Dispatchers.IO) {
                     val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
-                    File(dir, "Fruehere-Anlage.csv").also { it.writeText(HistoryCsv.format(history)) }
+                    File(dir, "Fruehere-Anlage.csv").also { it.writeText(HistoryCsv.format(legacyData)) }
                 }
                 _events.tryEmit(UiEvent.Share(file, "text/csv"))
             } catch (e: CancellationException) {
