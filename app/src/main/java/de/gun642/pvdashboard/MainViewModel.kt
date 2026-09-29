@@ -37,6 +37,7 @@ import de.gun642.pvdashboard.stats.EnergySeries
 import de.gun642.pvdashboard.stats.HistoryCsv
 import de.gun642.pvdashboard.stats.HistoryMonth
 import de.gun642.pvdashboard.stats.HistoryStore
+import de.gun642.pvdashboard.stats.PortalImport
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.stats.Period
 import de.gun642.pvdashboard.stats.PeriodType
@@ -562,25 +563,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         loadStats(force = true)
     }
 
-    fun importHistoryCsv(uri: android.net.Uri) {
+    var historyImporting by mutableStateOf(false)
+        private set
+
+    /**
+     * Liest beliebig viele Dateien auf einmal: Wochendateien aus dem alten SENEC-Portal (Leistungsverlauf,
+     * wird zu Monatswerten aufsummiert) und/oder eigene Monats-CSV. Messwerte ab Beginn der aktuellen
+     * Anlage in der Cloud werden ignoriert, damit im Wechselmonat nichts doppelt zählt.
+     */
+    fun importHistoryFiles(uris: List<android.net.Uri>) {
+        if (uris.isEmpty() || historyImporting) return
+        historyImporting = true
         viewModelScope.launch {
             try {
-                val text = withContext(Dispatchers.IO) {
-                    getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-                } ?: throw java.io.IOException("Datei nicht lesbar")
-                val imported = HistoryCsv.parse(text)
-                if (imported.isEmpty()) {
-                    message("Keine Monatswerte gefunden – Spalten: ${HistoryCsv.HEADER}")
+                val zone = java.time.ZoneId.systemDefault()
+                val cutoff = runCatching { cloud.dataStart() }.getOrNull()?.let { java.time.LocalDateTime.ofInstant(it, zone) }
+                val resolver = getApplication<Application>().contentResolver
+                val (months, report, problems) = withContext(Dispatchers.IO) {
+                    val own = mutableListOf<HistoryMonth>()
+                    var unreadable = 0
+                    val portalTexts = uris.asSequence().mapNotNull { uri ->
+                        val text = runCatching { resolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
+                        if (text == null) { unreadable++; null }
+                        else if (PortalImport.isPortalFile(text)) text
+                        else { own += HistoryCsv.parse(text); null }
+                    }
+                    val portal = PortalImport.combine(portalTexts, cutoff)
+                    val merged = HistoryStore.merge(own, portal.months)
+                    val fmt = java.time.format.DateTimeFormatter.ofPattern("MM/yyyy")
+                    val lines = buildList {
+                        add("Dateien: ${uris.size} ausgewählt, ${portal.files} Portal-Wochendateien ausgewertet" +
+                            (if (portal.skipped + unreadable > 0) ", ${portal.skipped + unreadable} übersprungen (Duplikat, überlappend oder nicht lesbar)" else ""))
+                        add("Monate: ${merged.size}" + (if (merged.isNotEmpty()) " (${merged.first().month.format(fmt)} – ${merged.last().month.format(fmt)})" else ""))
+                        if (cutoff != null) add("Messwerte ab ${cutoff.toLocalDate()} (Beginn der aktuellen Anlage) wurden ausgelassen.")
+                        else add("Beginn der aktuellen Anlage nicht abrufbar – es wurde nichts ausgelassen. Bei Überschneidung mit der Cloud kann der Wechselmonat doppelt zählen.")
+                        if (portal.incomplete.isNotEmpty()) {
+                            add("")
+                            add("Monate mit fehlenden Tagen (Tage mit Daten):")
+                            portal.incomplete.forEach { (m, n) -> add("  ${m.format(fmt)}: $n von ${m.lengthOfMonth()}") }
+                            add("Fehlende Wochendateien nachladen und erneut importieren – dabei alle Dateien des Monats mit auswählen.")
+                        }
+                    }
+                    Triple(merged, lines.joinToString("\n"), portal.incomplete.isNotEmpty() || portal.skipped + unreadable > 0)
+                }
+                if (months.isEmpty()) {
+                    message("Keine auswertbaren Daten gefunden")
                     return@launch
                 }
-                val merged = HistoryStore.merge(legacyData, imported)
+                val merged = HistoryStore.merge(legacyData, months)
                 withContext(Dispatchers.IO) { historyStore.save(merged) }
                 applyHistory(merged)
-                message("${imported.size} Monate importiert")
+                if (problems) showRaw("Import der früheren Anlage", report) else message("${months.size} Monate importiert")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 message("Import fehlgeschlagen: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                historyImporting = false
             }
         }
     }

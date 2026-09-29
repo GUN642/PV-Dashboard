@@ -272,15 +272,15 @@ private fun HistoryTile(vm: MainViewModel) {
     val history = vm.legacyData
     var confirmDelete by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val importer = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-    ) { uri -> if (uri != null) vm.importHistoryCsv(uri) }
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> vm.importHistoryFiles(uris) }
     Tile(Modifier.fillMaxWidth()) {
         Label("Frühere Anlage")
         Spacer(Modifier.height(6.dp))
         if (history.isEmpty()) {
             Text(
-                "Die SENEC-App liefert nur Daten seit dem aktuellen Speicher. Monatswerte der alten Anlage kannst du per CSV einspielen – " +
-                    "sie erscheinen dann in Jahr, Gesamt und im Vorjahresvergleich.",
+                "Die SENEC-App liefert nur Daten seit dem aktuellen Speicher. Die Wochendateien (CSV) aus dem alten Portal mein-senec.de " +
+                    "kannst du alle auf einmal auswählen – die App rechnet sie zu Monatswerten um. Sie erscheinen dann in Jahr, Gesamt und im Vorjahresvergleich.",
                 color = c.text, style = MaterialTheme.typography.bodyMedium,
             )
         } else {
@@ -292,13 +292,13 @@ private fun HistoryTile(vm: MainViewModel) {
         }
         Spacer(Modifier.height(10.dp))
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("CSV importieren", selected = false, onClick = { importer.launch(arrayOf("*/*")) })
+            Pill(if (vm.historyImporting) "Importiere …" else "Dateien importieren", selected = false, onClick = { if (!vm.historyImporting) importer.launch(arrayOf("*/*")) })
             Pill(if (history.isEmpty()) "Vorlage teilen" else "Als Datei teilen", selected = false, onClick = { vm.shareHistoryCsv() })
             if (history.isNotEmpty()) Pill("Löschen", selected = false, onClick = { confirmDelete = true })
         }
         Spacer(Modifier.height(8.dp))
-        Label("Spalten (kWh): Jahr;Monat;PV;Verbrauch;Netzbezug;Einspeisung;Speicher geladen;Speicher entladen;Wallbox")
-        Label("Der Monat, in dem der neue Speicher startet, enthält nur den Teil davor.")
+        Label("Eigene CSV möglich: Jahr;Monat;PV;Verbrauch;Netzbezug;Einspeisung;Speicher geladen;Speicher entladen;Wallbox (kWh)")
+        Label("Ab Beginn der aktuellen Anlage zählen nur noch die Cloud-Werte.")
     }
     if (confirmDelete) {
         androidx.compose.material3.AlertDialog(
