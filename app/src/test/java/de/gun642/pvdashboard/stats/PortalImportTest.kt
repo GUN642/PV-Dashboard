@@ -11,13 +11,15 @@ class PortalImportTest {
     private val header = "Uhrzeit;Netzbezug [kW];Netzeinspeisung [kW];Stromverbrauch [kW];Akkubeladung [kW];Akkuentnahme [kW];" +
         "Stromerzeugung [kW];Akku Spannung [V];Akku Stromstärke [A];Akku Füllstand [%]\r\n"
 
-    /** Stündliche Zeilen mit konstanter Leistung: Netzbezug 1 kW, Verbrauch 2 kW, PV 3 kW. */
-    private fun file(from: String, hours: Int, day: Int = 1, month: Int = 3, year: Int = 2025, startHour: Int = 0): String {
+    /**
+     * Messwerte im 5-Minuten-Takt am [day].03.2025 ab [startMinute] Minuten nach Mitternacht, [intervals] Intervalle
+     * (also intervals + 1 Zeilen) bei konstant Netzbezug 1 kW, Verbrauch 2 kW, PV 3 kW.
+     */
+    private fun file(day: Int, startMinute: Int, intervals: Int): String {
         val sb = StringBuilder(header)
-        var t = LocalDateTime.of(year, month, day, startHour, 0)
-        repeat(hours + 1) {
-            sb.append(String.format("%02d.%02d.%04d %02d:%02d:%02d;1,0;0;2,0;0;0;3,0;0;0;0\r\n", t.dayOfMonth, t.monthValue, t.year, t.hour, t.minute, 0))
-            t = t.plusMinutes(15).plusMinutes(45)
+        repeat(intervals + 1) { i ->
+            val minute = startMinute + 5 * i
+            sb.append(String.format("%02d.03.2025 %02d:%02d:00;1,0;0;2,0;0;0;3,0;0;0;0\r\n", day, minute / 60, minute % 60))
         }
         return sb.toString()
     }
@@ -30,21 +32,21 @@ class PortalImportTest {
 
     @Test
     fun integratesPowerToEnergyPerMonth() {
-        // 10 Intervalle à 1 h bei 1/2/3 kW → 10 kWh Netz, 20 kWh Verbrauch, 30 kWh PV
-        val r = PortalImport.combine(sequenceOf(file("", 10, startHour = 0)))
+        // 12 Intervalle à 5 min = 1 h bei 1/2/3 kW → 1 kWh Netz, 2 kWh Verbrauch, 3 kWh PV
+        val r = PortalImport.combine(sequenceOf(file(1, 0, 12)))
         val m = r.months.single()
         assertEquals(YearMonth.of(2025, 3), m.month)
-        assertEquals(10.0, m.totals.gridImport, 1e-9)
-        assertEquals(20.0, m.totals.consumption, 1e-9)
-        assertEquals(30.0, m.totals.pv, 1e-9)
+        assertEquals(1.0, m.totals.gridImport, 1e-9)
+        assertEquals(2.0, m.totals.consumption, 1e-9)
+        assertEquals(3.0, m.totals.pv, 1e-9)
     }
 
     @Test
     fun ordersFilesAndSkipsDuplicates() {
-        val a = file("", 5, day = 1)                 // 01.03. 00:00 – 05:00 → 5 kWh
-        val b = file("", 5, day = 1, startHour = 6)  // 06:00 – 11:00 → 5 kWh
+        val a = file(1, 0, 12)   // 00:00 – 01:00 → 1 kWh
+        val b = file(1, 120, 12) // 02:00 – 03:00 → 1 kWh (die Lücke dazwischen zählt nicht)
         val r = PortalImport.combine(sequenceOf(b, a, a)) // Reihenfolge egal, Duplikat wird ausgelassen
-        assertEquals(10.0, r.months.single().totals.gridImport, 1e-9)
+        assertEquals(2.0, r.months.single().totals.gridImport, 1e-9)
         assertEquals(2, r.files)
         assertEquals(1, r.skipped)
     }
@@ -63,23 +65,20 @@ class PortalImportTest {
 
     @Test
     fun bigGapsAreNotExtrapolated() {
-        val a = file("", 2, day = 1)
-        val b = file("", 2, day = 2) // 22 h Lücke dazwischen
-        val r = PortalImport.combine(sequenceOf(a, b))
-        assertEquals(4.0, r.months.single().totals.gridImport, 1e-9)
+        val r = PortalImport.combine(sequenceOf(file(1, 0, 12), file(2, 0, 12))) // 23 h Lücke dazwischen
+        assertEquals(2.0, r.months.single().totals.gridImport, 1e-9)
     }
 
     @Test
     fun cutoffDropsSamplesFromTheNewSystem() {
-        val a = file("", 10) // 00:00 – 10:00
-        val r = PortalImport.combine(sequenceOf(a), cutoff = LocalDateTime.of(2025, 3, 1, 5, 0))
-        // Messwerte 00:00 … 04:00 → 4 Intervalle
-        assertEquals(4.0, r.months.single().totals.gridImport, 1e-9)
+        val r = PortalImport.combine(sequenceOf(file(1, 0, 24)), cutoff = LocalDateTime.of(2025, 3, 1, 1, 0))
+        // Messwerte 00:00 … 00:55 → 11 Intervalle
+        assertEquals(11 * 5 / 60.0, r.months.single().totals.gridImport, 1e-9)
     }
 
     @Test
     fun reportsIncompleteMonths() {
-        val r = PortalImport.combine(sequenceOf(file("", 5)))
+        val r = PortalImport.combine(sequenceOf(file(1, 0, 12)))
         assertTrue(YearMonth.of(2025, 3) in r.incomplete)
     }
 }
