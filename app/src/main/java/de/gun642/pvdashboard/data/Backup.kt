@@ -3,6 +3,7 @@ package de.gun642.pvdashboard.data
 import android.content.Context
 import de.gun642.pvdashboard.contracts.ContractStore
 import de.gun642.pvdashboard.meters.MeterStore
+import de.gun642.pvdashboard.stats.HistoryStore
 import org.json.JSONObject
 import java.time.LocalDateTime
 
@@ -30,6 +31,7 @@ object Backup {
             .put("settings", encodePrefs(prefs.all))
             .put("meters", JSONObject(MeterStore.toJson(MeterStore(context).load())))
             .put("contracts", org.json.JSONArray(ContractStore.toJson(ContractStore(context).load())))
+            .put("history", org.json.JSONArray(HistoryStore.toJson(HistoryStore(context).load())))
             .toString(2)
     }
 
@@ -42,6 +44,7 @@ object Backup {
         val settings = decodePrefs(root.optJSONObject("settings") ?: JSONObject())
         val meters = MeterStore.fromJson((root.optJSONObject("meters") ?: JSONObject()).toString())
         val contracts = ContractStore.fromJson((root.optJSONArray("contracts") ?: org.json.JSONArray()).toString())
+        val history = HistoryStore.fromJson((root.optJSONArray("history") ?: org.json.JSONArray()).toString())
 
         val editor = context.getSharedPreferences(SettingsRepository.PREFS, Context.MODE_PRIVATE).edit().clear()
         settings.forEach { (key, value) ->
@@ -56,6 +59,7 @@ object Backup {
         editor.commit()
         MeterStore(context).save(meters)
         ContractStore(context).save(contracts)
+        HistoryStore(context).save(history)
         return RestoreSummary(settings.size, meters.values.sumOf { it.size }, contracts.size, root.optString("created"))
     }
 

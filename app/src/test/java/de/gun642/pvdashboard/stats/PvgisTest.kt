@@ -55,4 +55,15 @@ class PvgisTest {
         """.trimIndent()
         assertEquals(monthly, PvgisReference.parse(body))
     }
+
+    @Test
+    fun targetOnlyCountsFromStartOfRecording() {
+        val ref = PvgisReference(List(12) { 100.0 })
+        val year = Period(PeriodType.YEAR, LocalDate.of(2025, 6, 1))
+        val now = java.time.LocalDateTime.of(2026, 3, 1, 12, 0)
+        val full = ref.target(year, null, now)
+        val fromNovember = ref.target(year, LocalDate.of(2025, 11, 1), now)
+        assertEquals(1200.0, full, 1.0)
+        assertEquals(200.0, fromNovember, 1.0)
+    }
 }

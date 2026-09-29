@@ -52,7 +52,8 @@ class PvgisReference(val monthly: List<Double>) {
     fun target(period: Period, dataStart: LocalDate?, now: LocalDateTime = LocalDateTime.now()): Double = when (period.type) {
         PeriodType.DAY -> dailyAverage(period.start)
         PeriodType.TOTAL -> expected(dataStart ?: period.start, period.end, now)
-        else -> expected(period.start, period.end, now)
+        // Begann die Aufzeichnung mitten im Zeitraum (z. B. neuer Speicher im November), zählt das Soll erst ab dann
+        else -> expected(if (dataStart != null && dataStart.isAfter(period.start)) dataStart else period.start, period.end, now)
     }
 
     companion object {

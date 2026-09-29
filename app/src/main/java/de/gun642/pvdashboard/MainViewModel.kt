@@ -34,6 +34,9 @@ import de.gun642.pvdashboard.senec.cloud.SenecCloud
 import de.gun642.pvdashboard.senec.cloud.WallboxInfo
 import de.gun642.pvdashboard.senec.cloud.WallboxMode
 import de.gun642.pvdashboard.stats.EnergySeries
+import de.gun642.pvdashboard.stats.HistoryCsv
+import de.gun642.pvdashboard.stats.HistoryMonth
+import de.gun642.pvdashboard.stats.HistoryStore
 import de.gun642.pvdashboard.stats.EnergyTotals
 import de.gun642.pvdashboard.stats.Period
 import de.gun642.pvdashboard.stats.PeriodType
@@ -87,7 +90,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val s = settings.value
         if (s.hasCloud) s.senecEmail to s.senecPassword else null
     }
-    private val stats = StatsRepository(cloud)
+    private val stats = StatsRepository(cloud) { history }
 
     private val _events = MutableSharedFlow<UiEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<UiEvent> = _events
@@ -496,7 +499,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 repository.reload()
                 meterData = meterStore.load()
                 contracts = contractStore.load()
+                history = historyStore.load()
+                stats.invalidate()
                 statsResult = null
+                statsCompare = null
                 forecast = null
                 BackgroundChecks.apply(getApplication<Application>(), settings.value)
                 LiveWidget.updateAll(getApplication<Application>())
@@ -539,6 +545,70 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val ym = java.time.YearMonth.of(financeYear, financeMonth).plusMonths(delta.toLong())
         financeYear = ym.year
         financeMonth = ym.monthValue
+    }
+
+    // ---------- Frühere Anlage (Vorjahre aus CSV) ----------
+    private val historyStore = HistoryStore(app)
+
+    /** Monatswerte der früheren Anlage; ergänzen Jahr, Gesamt und Vorjahresvergleich. */
+    @Volatile
+    var history by mutableStateOf(historyStore.load())
+        private set
+
+    private fun applyHistory(list: List<HistoryMonth>) {
+        history = list
+        stats.invalidate()
+        statsResult = null
+        statsCompare = null
+        loadStats(force = true)
+    }
+
+    fun importHistoryCsv(uri: android.net.Uri) {
+        viewModelScope.launch {
+            try {
+                val text = withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                } ?: throw java.io.IOException("Datei nicht lesbar")
+                val imported = HistoryCsv.parse(text)
+                if (imported.isEmpty()) {
+                    message("Keine Monatswerte gefunden – Spalten: ${HistoryCsv.HEADER}")
+                    return@launch
+                }
+                val merged = HistoryStore.merge(history, imported)
+                withContext(Dispatchers.IO) { historyStore.save(merged) }
+                applyHistory(merged)
+                message("${imported.size} Monate importiert")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Import fehlgeschlagen: ${e.message ?: e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { historyStore.save(emptyList()) }
+            applyHistory(emptyList())
+            message("Werte der früheren Anlage gelöscht")
+        }
+    }
+
+    /** Vorhandene Werte (bzw. nur die Kopfzeile) als CSV teilen – zum Bearbeiten oder als Vorlage. */
+    fun shareHistoryCsv() {
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
+                    File(dir, "Fruehere-Anlage.csv").also { it.writeText(HistoryCsv.format(history)) }
+                }
+                _events.tryEmit(UiEvent.Share(file, "text/csv"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message("Export fehlgeschlagen: ${e.message}")
+            }
+        }
     }
 
     // ---------- Ladelog der Wallbox ----------

@@ -228,6 +228,8 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
 
     CostTile(vm.tariff, CostSummary.of(t, vm.tariff, r.billingMonths), r, onSettings)
 
+    HistoryTile(vm)
+
     TextButton(
         onClick = { vm.showRaw("Statistik-Rohdaten", r.rawJson) },
         modifier = Modifier.fillMaxWidth(),
@@ -257,6 +259,61 @@ private fun ToggleRow(label: String, value: String, color: Color, selected: Bool
             value,
             color = c.text,
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Medium),
+        )
+    }
+}
+
+/** Werte einer früheren Anlage (vor einem Speichertausch) per CSV einspielen. */
+@Composable
+private fun HistoryTile(vm: MainViewModel) {
+    val c = VoidTheme.colors
+    val history = vm.history
+    var confirmDelete by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val importer = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) vm.importHistoryCsv(uri) }
+    Tile(Modifier.fillMaxWidth()) {
+        Label("Frühere Anlage")
+        Spacer(Modifier.height(6.dp))
+        if (history.isEmpty()) {
+            Text(
+                "Die SENEC-App liefert nur Daten seit dem aktuellen Speicher. Monatswerte der alten Anlage kannst du per CSV einspielen – " +
+                    "sie erscheinen dann in Jahr, Gesamt und im Vorjahresvergleich.",
+                color = c.text, style = MaterialTheme.typography.bodyMedium,
+            )
+        } else {
+            val f = java.time.format.DateTimeFormatter.ofPattern("MM/yyyy")
+            Text(
+                "${history.size} Monate von ${history.minOf { it.month }.format(f)} bis ${history.maxOf { it.month }.format(f)}",
+                color = c.text, style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("CSV importieren", selected = false, onClick = { importer.launch(arrayOf("*/*")) })
+            Pill(if (history.isEmpty()) "Vorlage teilen" else "Als Datei teilen", selected = false, onClick = { vm.shareHistoryCsv() })
+            if (history.isNotEmpty()) Pill("Löschen", selected = false, onClick = { confirmDelete = true })
+        }
+        Spacer(Modifier.height(8.dp))
+        Label("Spalten (kWh): Jahr;Monat;PV;Verbrauch;Netzbezug;Einspeisung;Speicher geladen;Speicher entladen;Wallbox")
+        Label("Der Monat, in dem der neue Speicher startet, enthält nur den Teil davor.")
+    }
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = c.surface,
+            title = { Text("Löschen", color = c.text) },
+            text = { Text("Alle importierten Werte der früheren Anlage löschen?", color = c.textMuted) },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; vm.clearHistory() }) {
+                    Text("LÖSCHEN", style = MaterialTheme.typography.labelLarge, color = c.accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text("ABBRECHEN", style = MaterialTheme.typography.labelLarge, color = c.textMuted)
+                }
+            },
         )
     }
 }

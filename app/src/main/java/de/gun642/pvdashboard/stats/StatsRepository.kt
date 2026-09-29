@@ -2,6 +2,7 @@ package de.gun642.pvdashboard.stats
 
 import de.gun642.pvdashboard.data.HttpException
 import de.gun642.pvdashboard.senec.cloud.MeasurementPoint
+import de.gun642.pvdashboard.senec.cloud.MeasurementSeries
 import de.gun642.pvdashboard.senec.cloud.SenecCloud
 import java.time.Instant
 import java.time.LocalDate
@@ -11,9 +12,12 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /** Lädt Statistiken aus der SENEC-Cloud und fasst sie zu Balken zusammen. */
-class StatsRepository(private val cloud: SenecCloud) {
+class StatsRepository(private val cloud: SenecCloud, private val history: () -> List<HistoryMonth> = { emptyList() }) {
 
     private val cache = mutableMapOf<Period, Pair<Long, StatsResult>>()
+
+    /** Verwirft geladene Zeiträume (z. B. nach Import der Werte einer früheren Anlage). */
+    fun invalidate() = cache.clear()
 
     suspend fun load(period: Period, force: Boolean = false): StatsResult {
         val now = System.currentTimeMillis()
@@ -25,6 +29,7 @@ class StatsRepository(private val cloud: SenecCloud) {
         val zone = ZoneId.systemDefault()
         val dataStart = runCatching { cloud.dataStart() }.getOrNull()?.atZone(zone)?.toLocalDate()
         val result = if (period.type == PeriodType.TOTAL) loadTotal(period, zone, dataStart) else loadRange(period, zone, dataStart)
+            .let { r -> if (r.period.type == PeriodType.YEAR) withHistory(r, dataStart) else r }
         cache[period] = now to result
         return result
     }
@@ -60,24 +65,43 @@ class StatsRepository(private val cloud: SenecCloud) {
         throw lastError ?: IllegalStateException("Keine Daten")
     }
 
+    /** Jahr: Monate der früheren Anlage dazurechnen und den Beginn der Aufzeichnung entsprechend vorziehen. */
+    private fun withHistory(r: StatsResult, dataStart: LocalDate?): StatsResult {
+        val hist = history()
+        if (hist.none { it.month.year == r.period.start.year }) return r
+        val buckets = overlayYear(r.period.start.year, r.buckets, hist, dataStart)
+        return r.copy(
+            buckets = buckets,
+            totals = buckets.fold(EnergyTotals()) { acc, b -> acc + b.totals },
+            dataStart = earliest(dataStart, hist),
+            billingMonths = r.period.billingMonths(earliest(dataStart, hist)),
+        )
+    }
+
     /** Gesamtzeitraum: Jahr für Jahr in Monatsauflösung laden (wie die SENEC-App). */
     private suspend fun loadTotal(period: Period, zone: ZoneId, dataStart: LocalDate?): StatsResult {
         val currentYear = LocalDate.now().year
-        val firstYear = (dataStart?.year ?: (currentYear - 4)).coerceIn(2015, currentYear)
+        val hist = history()
+        val firstYear = minOf(dataStart?.year ?: (currentYear - 4), hist.minOfOrNull { it.month.year } ?: Int.MAX_VALUE)
+            .coerceIn(2000, currentYear)
         val buckets = mutableListOf<StatsBucket>()
         val raw = StringBuilder()
         for (year in firstYear..currentYear) {
             val yearPeriod = Period(PeriodType.YEAR, LocalDate.of(year, 1, 1))
             val (from, to) = yearPeriod.instants(zone)
-            val series = cloud.measurements("MONTH", from, to)
-            val total = series.points.fold(EnergyTotals()) { acc, p -> acc + EnergyTotals.fromMeasurements(p.values) }
+            // Vor Beginn der Aufzeichnung gibt es in der Cloud nichts abzufragen
+            val series = if (dataStart != null && year < dataStart.year) MeasurementSeries(emptyList(), "")
+            else cloud.measurements("MONTH", from, to)
+            val cloudTotal = series.points.fold(EnergyTotals()) { acc, p -> acc + EnergyTotals.fromMeasurements(p.values) }
+            val monthly = overlayYear(year, listOf(StatsBucket(1, "", cloudTotal)), hist, dataStart, wholeYear = true)
+            val total = monthly.first().totals
             // Jahre vor der ersten Aufzeichnung ohne Werte überspringen.
             if (buckets.isNotEmpty() || total.pv > 0 || total.consumption > 0) {
                 buckets += StatsBucket(year, year.toString(), total)
             }
             raw.append("// ").append(year).append('\n').append(series.rawJson).append("\n\n")
         }
-        val start = dataStart ?: buckets.firstOrNull()?.let { LocalDate.of(it.index, 1, 1) }
+        val start = earliest(dataStart ?: buckets.firstOrNull()?.let { LocalDate.of(it.index, 1, 1) }, hist)
         return StatsResult(
             period = period,
             totals = buckets.fold(EnergyTotals()) { acc, b -> acc + b.totals },
@@ -90,6 +114,36 @@ class StatsRepository(private val cloud: SenecCloud) {
 
     companion object {
         const val SOC_KEY = "BATTERY_LEVEL_IN_PERCENT"
+
+        /** Früherer Beginn: Aufzeichnung der Cloud oder erster Monat der früheren Anlage. */
+        fun earliest(dataStart: LocalDate?, history: List<HistoryMonth>): LocalDate? =
+            listOfNotNull(dataStart, history.minOfOrNull { it.month }?.atDay(1)).minOrNull()
+
+        /**
+         * Rechnet die Monate der früheren Anlage zu den Cloud-Werten. Sie gelten bis einschließlich des Monats,
+         * in dem die aktuelle Aufzeichnung beginnt (dort ergänzen sie den Teil davor); danach zählt nur die Cloud.
+         * Ohne bekannten Beginn füllen sie nur Monate ohne Cloud-Werte.
+         * Mit [wholeYear] steht [buckets] für das ganze Jahr in einem Wert (Gesamtansicht).
+         */
+        fun overlayYear(
+            year: Int, buckets: List<StatsBucket>, history: List<HistoryMonth>, dataStart: LocalDate?, wholeYear: Boolean = false,
+        ): List<StatsBucket> {
+            val limit = dataStart?.let(java.time.YearMonth::from)
+            fun applies(h: HistoryMonth, cloud: EnergyTotals) =
+                if (limit != null) !h.month.isAfter(limit) else cloud.pv == 0.0 && cloud.consumption == 0.0
+            val months = history.filter { it.month.year == year }
+            if (wholeYear) {
+                val cloud = buckets.first().totals
+                val extra = months.filter { limit != null || cloud.pv == 0.0 }.filter { applies(it, cloud) }
+                    .fold(EnergyTotals()) { acc, h -> acc + h.totals }
+                return listOf(buckets.first().copy(totals = cloud + extra))
+            }
+            val byMonth = months.associateBy { it.month.monthValue }
+            return buckets.map { b ->
+                val h = byMonth[b.index] ?: return@map b
+                if (applies(h, b.totals)) b.copy(totals = b.totals + h.totals) else b
+            }
+        }
 
         /**
          * Ordnet Messpunkte den Balken des Zeitraums zu (Tag: je [dayMinutes] Minuten, sonst Tag bzw. Monat, lokal).
