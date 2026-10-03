@@ -16,10 +16,10 @@ data class WidgetLayout(
 ) {
     companion object {
         // Höhenbedarf (dp): Ränder 22 + Kopfzeile 40 + große Werte ~50, dann je Bereich
-        private const val SHARE_BAR = 122f
-        private const val BATTERY = 146f
-        private const val SHARE_TEXT = 178f
-        private const val GRID = 218f
+        private const val SHARE_BAR = 114f
+        private const val BATTERY = 138f
+        private const val SHARE_TEXT = 170f
+        private const val GRID = 210f
 
         val FULL = of(300f, 260f)
 

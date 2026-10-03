@@ -16,7 +16,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:paddingStart="18dp"
-        android:paddingTop="6dp"
+        android:paddingTop="4dp"
         android:paddingEnd="8dp"
         android:paddingBottom="12dp">
 
@@ -51,10 +51,10 @@
             </LinearLayout>
             <ImageView
                 android:id="@+id/forecast_refresh"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:contentDescription="Aktualisieren"
-                android:padding="10dp"
+                android:padding="7dp"
                 android:src="@drawable/ic_widget_refresh" />
         </LinearLayout>
 
@@ -63,7 +63,7 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:gravity="bottom"
+            android:gravity="top"
             android:orientation="horizontal"
             android:paddingEnd="10dp">
             <LinearLayout
