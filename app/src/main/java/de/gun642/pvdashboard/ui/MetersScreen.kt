@@ -345,7 +345,7 @@ private fun ReadingsTile(type: MeterType, readings: List<MeterReading>, onDelete
                         Text(r.date.format(dateFormat), color = c.text, style = MaterialTheme.typography.bodyLarge)
                         if (r.reported) {
                             Spacer(Modifier.width(8.dp))
-                            Label("gemeldet", color = EnergyColors.gridExport)
+                            Label("gemeldet", color = EnergyColors.positive)
                         }
                     }
                     val delta = previous?.let { r.value - it.value }

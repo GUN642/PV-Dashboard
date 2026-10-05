@@ -67,7 +67,7 @@ private val deLocale = Locale.GERMANY
 
 /** Farbe für Einnahmen (grün) bzw. Ausgaben (Akzentfarbe). */
 @Composable
-private fun flowColor(flow: FlowType): Color = if (flow == FlowType.INCOME) EnergyColors.gridExport else VoidTheme.colors.accent
+private fun flowColor(flow: FlowType): Color = if (flow == FlowType.INCOME) EnergyColors.positive else VoidTheme.colors.accent
 
 private fun signedEuro(flow: FlowType, v: Double) = (if (flow == FlowType.INCOME) "+" else "−") + formatEuro(v)
 
@@ -192,7 +192,7 @@ private fun BalanceTile(s: FinanceSummary) {
     val positive = s.balance >= 0
     Tile(Modifier.fillMaxWidth()) {
         Label(if (positive) "Überschuss ${s.year}" else "Fehlbetrag ${s.year}")
-        BigValue(String.format(deLocale, "%,.2f", s.balance), "€", color = if (positive) EnergyColors.gridExport else c.accent, size = 44)
+        BigValue(String.format(deLocale, "%,.2f", s.balance), "€", color = if (positive) EnergyColors.positive else c.accent, size = 44)
         Label(String.format(deLocale, "Ø %,.2f € pro Monat", s.balance / 12))
         Spacer(Modifier.height(10.dp))
         ValueRow("Einnahmen", "+" + formatEuro(s.totalIncome), dot = flowColor(FlowType.INCOME))
@@ -211,7 +211,7 @@ private fun MonthBalanceTile(m: MonthFigures, monthName: String, year: FinanceSu
     val positive = m.balance >= 0
     Tile(Modifier.fillMaxWidth()) {
         Label((if (positive) "Überschuss " else "Fehlbetrag ") + monthName)
-        BigValue(String.format(deLocale, "%,.2f", m.balance), "€", color = if (positive) EnergyColors.gridExport else c.accent, size = 44)
+        BigValue(String.format(deLocale, "%,.2f", m.balance), "€", color = if (positive) EnergyColors.positive else c.accent, size = 44)
         Label(String.format(deLocale, "Ø Monat ${year.year}: %+,.2f €", year.balance / 12))
         Spacer(Modifier.height(10.dp))
         ValueRow("Einnahmen", "+" + formatEuro(m.income), dot = flowColor(FlowType.INCOME))
@@ -288,8 +288,8 @@ private fun AdvanceTile(
             return@Tile
         }
         val ok = check.difference >= 0
-        Label(if (ok) "Voraussichtlich Guthaben" else "Voraussichtlich Nachzahlung", color = if (ok) EnergyColors.gridExport else c.accent)
-        BigValue(String.format(deLocale, "%,.2f", kotlin.math.abs(check.difference)), "€", color = if (ok) EnergyColors.gridExport else c.accent, size = 40)
+        Label(if (ok) "Voraussichtlich Guthaben" else "Voraussichtlich Nachzahlung", color = if (ok) EnergyColors.positive else c.accent)
+        BigValue(String.format(deLocale, "%,.2f", kotlin.math.abs(check.difference)), "€", color = if (ok) EnergyColors.positive else c.accent, size = 40)
         Spacer(Modifier.height(8.dp))
         ValueRow("Abschläge 12 × ${formatEuro(check.advance)}", formatEuro(check.advanceTotal))
         ValueRow(
@@ -397,7 +397,7 @@ private fun ItemTile(item: Contract, inPeriod: Double, periodLabel: String, toda
             }
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Dot(if (due) c.accent else EnergyColors.gridExport, 7.dp)
+                Dot(if (due) c.accent else EnergyColors.positive, 7.dp)
                 Spacer(Modifier.width(8.dp))
                 Label(status, color = if (due) c.accent else c.textMuted)
             }

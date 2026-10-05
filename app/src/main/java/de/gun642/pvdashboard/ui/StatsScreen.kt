@@ -156,7 +156,7 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
                 Label(refLabel + formatKwh(refValue), Modifier.weight(1f))
                 Label(
                     String.format(Locale.GERMANY, "%.0f %%", ratio * 100),
-                    color = if (ratio >= 1) EnergyColors.gridExport else c.text,
+                    color = if (ratio >= 1) EnergyColors.positive else c.text,
                 )
             }
         }
@@ -191,6 +191,12 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
                 PeriodType.TOTAL -> 500.0
             },
             detailLabels = r.buckets.map { b -> bucketTitle(r.period, b.index, r.bucketMinutes) },
+            // Tag: Verlauf als Linien (Erzeugung mit Fläche), bei „heute“ nur bis jetzt
+            asLines = day,
+            lineCount = if (day && r.period.start == java.time.LocalDate.now()) {
+                val now = java.time.LocalTime.now()
+                (now.hour * 60 + now.minute) / r.bucketMinutes.coerceIn(1, 60) + 1
+            } else null,
             lines = listOfNotNull(
                 ChartLine(r.buckets.map { it.totals.autarky }, EnergyColors.autarky, "Autarkie").takeIf { vm.showAutarky },
                 ChartLine(r.buckets.map { b -> b.batterySoc?.let { it / 100 } }, EnergyColors.battery, socLabel)
@@ -337,7 +343,7 @@ private fun CostTile(tariff: Tariff, cost: CostSummary, r: StatsResult, onSettin
             return@Tile
         }
         val de = Locale.GERMANY
-        Text(formatEuro(cost.savings), style = valueStyle(40), color = EnergyColors.gridExport)
+        Text(formatEuro(cost.savings), style = valueStyle(40), color = EnergyColors.positive)
         Label("Ersparnis durch PV & Speicher")
         Spacer(Modifier.height(10.dp))
         ValueRow("Netzbezug × ${String.format(de, "%.2f", tariff.pricePerKwhCent)} ct", formatEuro(cost.gridCost))

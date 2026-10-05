@@ -307,6 +307,8 @@ data class ChartLine(val values: List<Double?>, val color: Color, val name: Stri
  *
  * - [series]: eine oder mehrere Reihen nebeneinander je Balken, [seriesNames] für die Detailanzeige
  * - [targets]: optionaler Soll-Wert je Balken (z. B. PVGIS/Vorjahr), als Querstrich gezeichnet
+ * - [asLines]: Reihen als Linien statt Balken (Tagesverlauf); die erste Reihe mit transparent gefüllter Fläche,
+ *   [lineCount] begrenzt die Punkte (z. B. bis „jetzt“)
  * - [lines]: optionale Linien in Prozent (0..1, z. B. Autarkie, Akku-Ladestand) mit gemeinsamer Achse rechts; null = Lücke
  * - [minScale]: die Y-Achse reicht mindestens bis hierhin, damit Messrauschen nicht die volle Höhe füllt
  * - [detailLabels]: Überschrift in der Detailanzeige je Balken (sonst [labels])
@@ -324,6 +326,8 @@ fun BarChart(
     minScale: Double = 0.0,
     detailLabels: List<String>? = null,
     lines: List<ChartLine> = emptyList(),
+    asLines: Boolean = false,
+    lineCount: Int? = null,
 ) {
     val c = VoidTheme.colors
     val scale = ChartScale.of((series.flatMap { it.second } + targets.orEmpty()).maxOrNull() ?: 0.0, minScale)
@@ -386,19 +390,66 @@ fun BarChart(
             // Ausgewählter Balken
             selected?.let { i -> drawRect(highlight, Offset(leftPx + slot * i, topPx), Size(slot, plotH)) }
 
-            series.forEachIndexed { s, (color, values) ->
-                values.forEachIndexed { i, v ->
-                    if (v <= 0) return@forEachIndexed
-                    val h = (v / scale.max * plotH).toFloat().coerceAtLeast(2f)
-                    val x = leftPx + slot * i + (slot - groupWidth) / 2 + barWidth * s
-                    val alpha = if (selected == null || selected == i) 1f else 0.45f
-                    drawRoundRect(color.copy(alpha = alpha), Offset(x, topPx + plotH - h), Size(barWidth * 0.85f, h), radius)
+            if (asLines) {
+                // Verlauf: Linien, die erste Reihe (Erzeugung) mit transparenter Fläche darunter
+                val count = (lineCount ?: n).coerceIn(0, n)
+                fun px(i: Int) = leftPx + slot * i + slot / 2
+                val base = topPx + plotH
+                targets?.take(count)?.let { t ->
+                    val path = androidx.compose.ui.graphics.Path()
+                    t.forEachIndexed { i, v -> if (i == 0) path.moveTo(px(i), y(v)) else path.lineTo(px(i), y(v)) }
+                    if (t.size > 1) drawPath(
+                        path, muted.copy(alpha = 0.7f),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = lineWidth * 0.6f,
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 6f)),
+                        ),
+                    )
                 }
-            }
-            targets?.forEachIndexed { i, t ->
-                if (t <= 0) return@forEachIndexed
-                val x = leftPx + slot * i + (slot - groupWidth) / 2 - 2f
-                drawRoundRect(muted, Offset(x, y(t) - 1.5f), Size(groupWidth + 4f, 3f), CornerRadius(1.5f, 1.5f))
+                series.forEachIndexed { s, (color, values) ->
+                    val pts = values.take(count)
+                    if (pts.size < 2) return@forEachIndexed
+                    val line = androidx.compose.ui.graphics.Path()
+                    pts.forEachIndexed { i, v -> if (i == 0) line.moveTo(px(i), y(v)) else line.lineTo(px(i), y(v)) }
+                    if (s == 0) {
+                        val area = androidx.compose.ui.graphics.Path().apply {
+                            addPath(line)
+                            lineTo(px(pts.lastIndex), base)
+                            lineTo(px(0), base)
+                            close()
+                        }
+                        drawPath(
+                            area,
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(color.copy(alpha = 0.45f), color.copy(alpha = 0.08f)), startY = topPx, endY = base,
+                            ),
+                        )
+                    }
+                    drawPath(
+                        line, color,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = if (s == 0) lineWidth else lineWidth * 0.8f,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                        ),
+                    )
+                    selected?.let { i -> pts.getOrNull(i)?.let { v -> drawCircle(color, pointRadius, Offset(px(i), y(v))) } }
+                }
+            } else {
+                series.forEachIndexed { s, (color, values) ->
+                    values.forEachIndexed { i, v ->
+                        if (v <= 0) return@forEachIndexed
+                        val h = (v / scale.max * plotH).toFloat().coerceAtLeast(2f)
+                        val x = leftPx + slot * i + (slot - groupWidth) / 2 + barWidth * s
+                        val alpha = if (selected == null || selected == i) 1f else 0.45f
+                        drawRoundRect(color.copy(alpha = alpha), Offset(x, topPx + plotH - h), Size(barWidth * 0.85f, h), radius)
+                    }
+                }
+                targets?.forEachIndexed { i, t ->
+                    if (t <= 0) return@forEachIndexed
+                    val x = leftPx + slot * i + (slot - groupWidth) / 2 - 2f
+                    drawRoundRect(muted, Offset(x, y(t) - 1.5f), Size(groupWidth + 4f, 3f), CornerRadius(1.5f, 1.5f))
+                }
             }
 
             // Prozent-Linie mit Achse rechts (0 % unten, 100 % oben)

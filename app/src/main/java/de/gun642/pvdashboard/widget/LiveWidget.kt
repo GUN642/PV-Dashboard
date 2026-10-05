@@ -139,6 +139,7 @@ class LiveWidget : AppWidgetProvider() {
         private val BATTERY_BLUE = Color.parseColor("#3D7BFF")
         private val WALLBOX_PINK = Color.parseColor("#FF4F8B")
         private val EXPORT_GREEN = Color.parseColor("#34C759")
+        private val EXPORT_ORANGE = Color.parseColor("#FF8A00")
         private val LOW_RED = Color.parseColor("#FF453A")
         private val MID_YELLOW = Color.parseColor("#FFC400")
 
@@ -146,7 +147,7 @@ class LiveWidget : AppWidgetProvider() {
             Triple("Haus", s.house, houseColor),
             Triple("Akku", s.battery, BATTERY_BLUE),
             Triple("Wallbox", s.wallbox, WALLBOX_PINK),
-            Triple("Netz", s.export, EXPORT_GREEN),
+            Triple("Netz", s.export, EXPORT_ORANGE),
         )
 
         /** Gestapelter Balken der PV-Aufteilung. */

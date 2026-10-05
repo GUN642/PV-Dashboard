@@ -84,7 +84,7 @@ private fun StatusLine(vm: MainViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         val (color, text) = when {
             s == null -> c.textMuted to if (vm.liveLoading) "Verbinde" else "Keine Daten"
-            s.source == LiveSource.LOCAL -> EnergyColors.gridExport to "Heimnetz · ${formatTime(s.timestamp)}"
+            s.source == LiveSource.LOCAL -> EnergyColors.positive to "Heimnetz · ${formatTime(s.timestamp)}"
             else -> EnergyColors.battery to "SENEC-Cloud · ${formatTime(s.timestamp)}"
         }
         Dot(color)

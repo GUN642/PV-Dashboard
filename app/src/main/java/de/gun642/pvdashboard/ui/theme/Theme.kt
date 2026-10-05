@@ -209,18 +209,20 @@ fun valueStyle(size: Int): TextStyle =
 
 /** Farben je Energiefluss – aus der Akzentpalette von VOID Files. */
 object EnergyColors {
-    /** PV folgt der Akzentfarbe (Standard: Rot); bei „Mono“ Gelb, damit sie sich vom Verbrauch abhebt. */
-    val pv: Color
-        @Composable get() = VoidTheme.colors.let { if (it.accent == it.text) Color(0xFFFFC400) else it.accent }
-    val gridImport = Color(0xFFFF6A13)
-    val gridExport = Color(0xFF34C759)
+    /** Erzeugung gelb, Netzbezug rot, Einspeisung orange (wie in der SENEC-App). */
+    val pv = Color(0xFFFFC400)
+    val gridImport = Color(0xFFFF3B30)
+    val gridExport = Color(0xFFFF8A00)
+
+    /** Grün für „gut“: Guthaben, Ersparnis, Soll erreicht, Heimnetz verbunden, eigener Strom */
+    val positive = Color(0xFF34C759)
     val battery = Color(0xFF3D7BFF)
     val wallbox = Color(0xFFFF4F8B)
 
     /** Speicher-Entladung heller als Laden, damit beide Balken unterscheidbar sind. */
     val batteryDischarge = Color(0xFF9DB9FF)
     /** Autarkie-Linie in der Statistik */
-    val autarky = Color(0xFFFFC400)
+    val autarky = Color(0xFF34C759)
 
     /** Verbrauch in Textfarbe (weiß bzw. schwarz je nach Design). */
     val house: Color @Composable get() = VoidTheme.colors.text

@@ -251,9 +251,9 @@ private fun ChargeLogTile(vm: MainViewModel, settings: AppSettings) {
         BigValue(String.format(de, "%.1f", log.kwh), "kWh", size = 44)
         Label(String.format(de, "%d Ladevorgänge · %.0f %% eigener Strom", log.sessions.size, log.solarShare * 100))
         Spacer(Modifier.height(8.dp))
-        DotBar(log.solarShare.toFloat(), Modifier.fillMaxWidth().height(10.dp), dots = 30, color = EnergyColors.gridExport)
+        DotBar(log.solarShare.toFloat(), Modifier.fillMaxWidth().height(10.dp), dots = 30, color = EnergyColors.positive)
         Spacer(Modifier.height(8.dp))
-        ValueRow("Eigener Strom", formatKwh(log.solarKwh), dot = EnergyColors.gridExport)
+        ValueRow("Eigener Strom", formatKwh(log.solarKwh), dot = EnergyColors.positive)
         ValueRow("Netzstrom", formatKwh(log.gridKwh), dot = EnergyColors.gridImport)
         if (price > 0) {
             Hairline()
