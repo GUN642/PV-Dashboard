@@ -87,7 +87,7 @@ object VoidTheme {
 }
 
 private fun palette(mode: ThemeMode, systemDark: Boolean): Triple<Color, Color, Color> = when (mode) {
-    ThemeMode.BLACK -> Triple(Color(0xFF000000), Color(0xFF0E0E0E), Color(0xFF1A1A1A))
+    ThemeMode.BLACK -> Triple(Color(0xFF000000), Color(0xFF1A1A1C), Color(0xFF2A2A2D))
     ThemeMode.GRAPHITE -> Triple(Color(0xFF1C1C1E), Color(0xFF242427), Color(0xFF2E2E32))
     ThemeMode.STEEL -> Triple(Color(0xFF12161B), Color(0xFF1A2027), Color(0xFF232B34))
     ThemeMode.PAPER -> Triple(Color(0xFFEFEEEA), Color(0xFFF7F6F2), Color(0xFFE4E3DE))
@@ -132,8 +132,8 @@ fun PvTheme(
         if (accent == Accent.MONO && !dark) accentColor = Color(0xFF111111)
         val onAccent = if (accentColor.luminance() > 0.55f) Color.Black else Color.White
         val text = if (dark) Color(0xFFF2F2F2) else Color(0xFF111111)
-        val muted = if (dark) Color(0xFF8C8C8C) else Color(0xFF6B6B6B)
-        val divider = if (dark) Color.White.copy(alpha = 0.09f) else Color.Black.copy(alpha = 0.09f)
+        val muted = if (dark) Color(0xFF9E9EA3) else Color(0xFF6B6B6B)
+        val divider = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.09f)
         colors = VoidColors(
             background = bg, surface = surface, surfaceHigh = high, text = text, textMuted = muted,
             divider = divider, accent = accentColor, onAccent = onAccent,

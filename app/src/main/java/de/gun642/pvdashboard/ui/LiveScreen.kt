@@ -61,7 +61,6 @@ fun LiveScreen(vm: MainViewModel, onSettings: () -> Unit, onWallbox: () -> Unit)
                 BatteryTile(s)
                 RatioTile(s)
                 vm.today?.let { TodayTile(it) }
-                ChartTile(vm.history)
                 TextButton(
                     onClick = { vm.showRaw("Live-Rohdaten", pretty(s.raw)) },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -243,99 +242,6 @@ private fun TodayTile(t: EnergyTotals) {
         ValueRow("Einspeisung", formatKwh(t.gridExport), EnergyColors.gridExport)
         ValueRow("Speicher geladen / entladen", "${formatKwh(t.batteryCharge)} / ${formatKwh(t.batteryDischarge)}", EnergyColors.battery)
         if (t.wallbox > 0) ValueRow("Wallbox", formatKwh(t.wallbox), EnergyColors.wallbox)
-    }
-}
-
-private class Series(val label: String, val color: Color, val value: (SenecSnapshot) -> Double?)
-
-/** Y-Achse des Verlaufs: fest 0–10 kW, bei höheren Werten in 2,5-kW-Schritten erweitert. */
-private const val CHART_MIN_MAX_KW = 10.0
-private const val CHART_STEP_KW = 2.5
-private const val CHART_WINDOW_MS = 30 * 60_000L
-
-@Composable
-private fun ChartTile(history: List<SenecSnapshot>) {
-    val c = VoidTheme.colors
-    val series = listOf(
-        Series("PV", EnergyColors.pv) { it.pvW },
-        Series("Haus", EnergyColors.house) { it.houseW },
-        // Nur Netzbezug; Einspeisung wäre negativ und liegt unter der 0-Linie.
-        Series("Netzbezug", EnergyColors.gridImport) { s -> s.gridW?.coerceAtLeast(0.0) },
-        Series("Wallbox", EnergyColors.wallbox) { it.wallboxW },
-    )
-    Tile(Modifier.fillMaxWidth()) {
-        Label("Verlauf · letzte 30 min")
-        Spacer(Modifier.height(12.dp))
-        if (history.size < 2) {
-            Text("Wird aufgebaut, solange die App offen ist …", color = c.textMuted, style = MaterialTheme.typography.bodyMedium)
-            return@Tile
-        }
-        val peakKw = (history.flatMap { s -> series.mapNotNull { it.value(s) } }.maxOrNull() ?: 0.0) / 1000
-        val maxKw = maxOf(CHART_MIN_MAX_KW, Math.ceil(peakKw / CHART_STEP_KW) * CHART_STEP_KW)
-        val end = history.last().timestamp
-        val start = end - CHART_WINDOW_MS
-        val density = LocalDensity.current
-        val labelSizePx = with(density) { 9.sp.toPx() }
-        val leftPx = with(density) { 40.dp.toPx() }
-        val bottomPx = with(density) { 18.dp.toPx() }
-        val muted = c.textMuted
-        val grid = c.divider
-
-        Canvas(Modifier.fillMaxWidth().height(200.dp)) {
-            val plotW = size.width - leftPx
-            val plotH = size.height - bottomPx
-            fun y(watts: Double) = (plotH * (1 - (watts / 1000 / maxKw))).toFloat().coerceIn(0f, plotH)
-            fun x(t: Long) = leftPx + plotW * ((t - start).toFloat() / CHART_WINDOW_MS)
-
-            val paint = android.graphics.Paint().apply {
-                isAntiAlias = true
-                color = muted.toArgb()
-                textSize = labelSizePx
-                typeface = android.graphics.Typeface.MONOSPACE
-            }
-            val native = drawContext.canvas.nativeCanvas
-
-            // Y-Achse: Gitterlinien und Beschriftung in kW
-            var tick = 0.0
-            while (tick <= maxKw + 1e-6) {
-                val yy = y(tick * 1000)
-                drawLine(grid, Offset(leftPx, yy), Offset(size.width, yy), strokeWidth = if (tick == 0.0) 2f else 1f)
-                val text = if (tick % 1.0 == 0.0) String.format(Locale.GERMANY, "%.0f kW", tick) else String.format(Locale.GERMANY, "%.1f", tick)
-                paint.textAlign = android.graphics.Paint.Align.RIGHT
-                native.drawText(text, leftPx - 6f, yy + labelSizePx / 3, paint)
-                tick += CHART_STEP_KW
-            }
-
-            // X-Achse: Uhrzeit alle 10 Minuten
-            paint.textAlign = android.graphics.Paint.Align.CENTER
-            for (i in 0..3) {
-                val t = start + i * 10 * 60_000L
-                val xx = x(t)
-                drawLine(grid, Offset(xx, plotH), Offset(xx, plotH + 4f), strokeWidth = 1f)
-                val label = if (i == 3) "jetzt" else java.text.SimpleDateFormat("HH:mm", Locale.GERMANY).format(java.util.Date(t))
-                paint.textAlign = when (i) {
-                    0 -> android.graphics.Paint.Align.LEFT
-                    3 -> android.graphics.Paint.Align.RIGHT
-                    else -> android.graphics.Paint.Align.CENTER
-                }
-                native.drawText(label, xx, size.height - 2f, paint)
-            }
-
-            // Messreihen
-            series.forEach { line ->
-                val path = Path()
-                var started = false
-                history.filter { it.timestamp >= start }.forEach { s ->
-                    val v = line.value(s)
-                    if (v == null) started = false
-                    else if (!started) { path.moveTo(x(s.timestamp), y(v)); started = true }
-                    else path.lineTo(x(s.timestamp), y(v))
-                }
-                drawPath(path, line.color, style = Stroke(width = 4f))
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Legend(series.map { it.label to it.color })
     }
 }
 
