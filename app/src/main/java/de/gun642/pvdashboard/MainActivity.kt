@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppTime.apply()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         Notifier.ensureChannels(this)
@@ -46,6 +47,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Falls die Handy-Zeitzone gewechselt hat, während die App im Hintergrund war
+        AppTime.apply()
         viewModel.start()
     }
 

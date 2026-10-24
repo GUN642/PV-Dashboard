@@ -25,6 +25,8 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 - **Weitere Widgets**: „VOID Akku“ (1×1, Ladestand als Punkte-Ring) und „VOID PV-Prognose“ (Ertrag heute und morgen)
 - **Design**: VOID-/Nothing-Stil mit Dot-Matrix-Schrift, sieben Hintergründen und Akzentfarben
 
+Alle Uhrzeiten und Tage (Statistik, Ladelog, Widgets, Erinnerungen) gelten in deutscher Zeit – auch wenn das Handy im Ausland eine andere Zeitzone hat.
+
 ## Einrichtung in der App
 
 | Bereich | Wofür |
