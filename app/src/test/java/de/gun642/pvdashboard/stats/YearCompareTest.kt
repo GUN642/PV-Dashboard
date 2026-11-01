@@ -71,4 +71,13 @@ class YearCompareTest {
         assertEquals(96, YearCompare.bucketValues(quarters, hours).size)
         assertEquals(0.0, YearCompare.bucketValues(quarters, hours).sum(), 0.0)
     }
+
+    @Test
+    fun comparesAnySeriesNotOnlyPv() {
+        val current = (1..3).map { StatsBucket(it, "", EnergyTotals(gridImport = 10.0 * it)) }
+        val previous = (1..3).map { StatsBucket(it, "", EnergyTotals(pv = 1.0, gridImport = 20.0 * it)) }
+        assertEquals(listOf(20.0, 40.0, 60.0), YearCompare.bucketValues(current, previous) { it.gridImport })
+        val year = Period(PeriodType.YEAR, LocalDate.of(2025, 1, 1))
+        assertEquals(120.0, YearCompare.toDate(year, previous, LocalDateTime.of(2026, 3, 1, 0, 0)) { it.gridImport }, 1e-9)
+    }
 }

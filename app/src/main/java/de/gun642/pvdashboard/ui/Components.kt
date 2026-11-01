@@ -314,6 +314,8 @@ data class ChartLine(val values: List<Double?>, val color: Color, val name: Stri
  * - [targets]: optionaler Soll-Wert je Balken (z. B. PVGIS/Vorjahr), als Querstrich gezeichnet
  * - [asLines]: Reihen als Linien statt Balken (Tagesverlauf); die erste Reihe mit transparent gefüllter Fläche,
  *   [lineCount] begrenzt die Punkte (z. B. bis „jetzt“)
+ * - [compare]: Vergleichswerte je Reihe (z. B. Vorjahr), gleiche Reihenfolge wie [series]; als Strich über dem
+ *   eigenen Balken bzw. gestrichelte Linie gezeichnet, in der Detailanzeige neben dem Wert ([compareName])
  * - [lines]: optionale Linien in Prozent (0..1, z. B. Autarkie, Akku-Ladestand) mit gemeinsamer Achse rechts; null = Lücke
  * - [minScale]: die Y-Achse reicht mindestens bis hierhin, damit Messrauschen nicht die volle Höhe füllt
  * - [detailLabels]: Überschrift in der Detailanzeige je Balken (sonst [labels])
@@ -333,9 +335,13 @@ fun BarChart(
     lines: List<ChartLine> = emptyList(),
     asLines: Boolean = false,
     lineCount: Int? = null,
+    compare: List<List<Double>?>? = null,
+    compareName: String = "Vorjahr",
 ) {
     val c = VoidTheme.colors
-    val baseScale = ChartScale.of((series.flatMap { it.second } + targets.orEmpty()).maxOrNull() ?: 0.0, minScale)
+    val baseScale = ChartScale.of(
+        (series.flatMap { it.second } + targets.orEmpty() + compare.orEmpty().flatMap { it.orEmpty() }).maxOrNull() ?: 0.0, minScale,
+    )
     var selected by remember(labels, series.map { it.second }) { mutableStateOf<Int?>(null) }
     // Zoom per Zwei-Finger-Geste: X (sichtbare Balken) und Y (Skalenende) getrennt; Doppeltippen setzt zurück
     var zoomX by remember(labels) { mutableFloatStateOf(1f) }
@@ -486,6 +492,20 @@ fun BarChart(
                             ),
                         )
                     }
+                    compare?.forEachIndexed { s, prev ->
+                        val color = series.getOrNull(s)?.first ?: return@forEachIndexed
+                        val p = prev?.take(n) ?: return@forEachIndexed
+                        if (p.size < 2 || p.all { it <= 0.0 }) return@forEachIndexed
+                        val path = androidx.compose.ui.graphics.Path()
+                        p.forEachIndexed { i, v -> if (i == 0) path.moveTo(px(i), y(v)) else path.lineTo(px(i), y(v)) }
+                        drawPath(
+                            path, color.copy(alpha = 0.55f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = lineWidth * 0.7f,
+                                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 7f)),
+                            ),
+                        )
+                    }
                     series.forEachIndexed { s, (color, values) ->
                         val pts = values.take(count)
                         if (pts.size < 2) return@forEachIndexed
@@ -529,6 +549,16 @@ fun BarChart(
                         if (t <= 0) return@forEachIndexed
                         val x = x0 + slot * i + (slot - groupWidth) / 2 - 2f
                         drawRoundRect(muted, Offset(x, y(t) - 1.5f), Size(groupWidth + 4f, 3f), CornerRadius(1.5f, 1.5f))
+                    }
+                    // Vorjahr je Reihe: Strich in Textfarbe über dem eigenen Balken (im und über dem Balken sichtbar)
+                    compare?.forEachIndexed { s, prev ->
+                        prev?.forEachIndexed { i, v ->
+                            if (v <= 0) return@forEachIndexed
+                            val x = x0 + slot * i + (slot - groupWidth) / 2 + barWidth * s
+                            val w = barWidth * 0.85f
+                            drawRoundRect(c.background.copy(alpha = 0.7f), Offset(x - 1.5f, y(v) - 2.5f), Size(w + 3f, 5f), CornerRadius(2.5f, 2.5f))
+                            drawRoundRect(c.text, Offset(x - 1f, y(v) - 1.5f), Size(w + 2f, 3f), CornerRadius(1.5f, 1.5f))
+                        }
                     }
                 }
             }
@@ -580,6 +610,12 @@ fun BarChart(
                         Dot(color, 7.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(seriesNames.getOrNull(s) ?: "Wert", color = c.textMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        compare?.getOrNull(s)?.getOrNull(index)?.let { prev ->
+                            Text(
+                                "$compareName ${formatChartValue(prev, unit)}  ",
+                                color = c.textMuted, style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         Text(formatChartValue(values.getOrNull(index) ?: 0.0, unit), color = c.text, style = MaterialTheme.typography.bodyMedium)
                     }
                 }

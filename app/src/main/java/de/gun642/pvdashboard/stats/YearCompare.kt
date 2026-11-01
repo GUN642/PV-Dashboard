@@ -16,11 +16,13 @@ object YearCompare {
     fun complete(previous: StatsResult): Boolean =
         available(previous) && (previous.dataStart == null || !previous.dataStart.isAfter(previous.period.start))
 
-    /** Vorjahres-PV je Balken, über den Index zugeordnet (Stunde, Tag bzw. Monat). */
-    fun bucketValues(current: List<StatsBucket>, previous: List<StatsBucket>): List<Double> {
+    /** Vorjahreswert je Balken (Standard: PV), über den Index zugeordnet (Stunde, Tag bzw. Monat). */
+    fun bucketValues(
+        current: List<StatsBucket>, previous: List<StatsBucket>, value: (EnergyTotals) -> Double = { it.pv },
+    ): List<Double> {
         // Unterschiedliche Auflösung (z. B. Viertelstunden gegen Stunden): kein Vergleich je Balken
         if ((current.size > 31) != (previous.size > 31)) return current.map { 0.0 }
-        val byIndex = previous.associate { it.index to it.totals.pv }
+        val byIndex = previous.associate { it.index to value(it.totals) }
         return current.map { byIndex[it.index] ?: 0.0 }
     }
 
@@ -28,9 +30,12 @@ object YearCompare {
      * Vorjahres-PV bis zum selben Zeitpunkt: bei einem laufenden Zeitraum die bereits
      * vergangenen Balken plus den laufenden anteilig, sonst die ganze Summe.
      */
-    fun toDate(period: Period, previous: List<StatsBucket>, now: LocalDateTime = LocalDateTime.now()): Double {
+    fun toDate(
+        period: Period, previous: List<StatsBucket>, now: LocalDateTime = LocalDateTime.now(),
+        value: (EnergyTotals) -> Double = { it.pv },
+    ): Double {
         val today = now.toLocalDate()
-        if (!period.end.isAfter(today)) return previous.sumOf { it.totals.pv }
+        if (!period.end.isAfter(today)) return previous.sumOf { value(it.totals) }
         if (period.start.isAfter(today)) return 0.0
         val hourOfDay = now.hour + now.minute / 60.0
         val (current, fraction) = when (period.type) {
@@ -42,12 +47,12 @@ object YearCompare {
             }
             PeriodType.MONTH -> now.dayOfMonth to hourOfDay / 24
             PeriodType.YEAR -> now.monthValue to (now.dayOfMonth - 1 + hourOfDay / 24) / today.lengthOfMonth()
-            PeriodType.TOTAL -> return previous.sumOf { it.totals.pv }
+            PeriodType.TOTAL -> return previous.sumOf { value(it.totals) }
         }
         return previous.sumOf { b ->
             when {
-                b.index < current -> b.totals.pv
-                b.index == current -> b.totals.pv * fraction
+                b.index < current -> value(b.totals)
+                b.index == current -> value(b.totals) * fraction
                 else -> 0.0
             }
         }

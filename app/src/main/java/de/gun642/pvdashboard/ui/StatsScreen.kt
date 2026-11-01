@@ -130,6 +130,7 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
     // Vorjahr statt PVGIS, sobald Vorjahresdaten vorliegen
     val previous = vm.statsCompare?.takeIf { it.period == YearCompare.previousPeriod(r.period) && YearCompare.available(it) }
     val shown = EnergySeries.entries.filter { it in vm.chartSeries }
+    val running = r.period.end.isAfter(java.time.LocalDate.now())
     val hasSoc = r.buckets.any { it.batterySoc != null }
     // Stunde: Ladestand je Stunde; Monat/Jahr: Tages- bzw. Monatsmittel
     val socLabel = if (r.period.type == PeriodType.DAY) "Akku-Ladestand" else "Ø Akku-Ladestand"
@@ -142,7 +143,6 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
         }
         val kwh = formatKwh(t.pv).split(' ')
         BigValue(kwh[0], kwh.getOrElse(1) { "kWh" }, size = 56)
-        val running = r.period.end.isAfter(java.time.LocalDate.now())
         val (refLabel, refValue) = when {
             previous != null && YearCompare.complete(previous) ->
                 (if (running) "Vorjahr bis jetzt " else "Vorjahr ") to YearCompare.toDate(r.period, previous.buckets)
@@ -161,7 +161,12 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
             }
         }
         Spacer(Modifier.height(12.dp))
-        val targets = if (previous != null) YearCompare.bucketValues(r.buckets, previous.buckets) else pvgis?.bucketTargets(r.period, r.buckets)
+        // Mit Vorjahr: Vergleich je Reihe (Erzeugung und alle eingeblendeten); sonst PVGIS als Soll der Erzeugung
+        val targets = if (previous != null) null else pvgis?.bucketTargets(r.period, r.buckets)
+        val compare = previous?.let { prev ->
+            listOf(YearCompare.bucketValues(r.buckets, prev.buckets)) +
+                shown.map { s -> YearCompare.bucketValues(r.buckets, prev.buckets, s.value) }
+        }
         val targetName = when {
             previous != null -> "Vorjahr (${previous.period.label})"
             else -> "PVGIS-Soll"
@@ -171,6 +176,8 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
         val factor = if (day && r.bucketMinutes in 1..59) 60.0 / r.bucketMinutes else 1.0
         BarChart(
             targets = targets?.map { it * factor },
+            compare = compare?.map { list -> list.map { it * factor } },
+            compareName = "VJ",
             labels = r.buckets.map { it.label },
             series = listOf(EnergyColors.pv to r.buckets.map { it.totals.pv * factor }) +
                 shown.map { s -> seriesColor(s) to r.buckets.map { s.value(it.totals) * factor } },
@@ -210,7 +217,7 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
                 (if (vm.showAutarky) listOf("Autarkie" to EnergyColors.autarky) else emptyList()) +
                 (if (vm.showSoc && hasSoc) listOf(socLabel to EnergyColors.battery) else emptyList()) +
                 when {
-                    previous != null -> listOf("Vorjahr" to c.textMuted)
+                    previous != null -> listOf("Strich/gestrichelt = Vorjahr" to c.text)
                     pvgis != null && r.period.type != PeriodType.DAY -> listOf("PVGIS" to c.textMuted)
                     else -> emptyList()
                 }
@@ -223,7 +230,10 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
         Label("Antippen: im Diagramm ein-/ausblenden")
         Spacer(Modifier.height(6.dp))
         EnergySeries.entries.forEach { s ->
-            ToggleRow(s.label, formatKwh(s.value(t)), seriesColor(s), s in vm.chartSeries) { vm.toggleChartSeries(s) }
+            ToggleRow(
+                s.label, formatKwh(s.value(t)), seriesColor(s), s in vm.chartSeries,
+                previous = previous?.let { prev -> compareText(s.value(t), YearCompare.toDate(r.period, prev.buckets, value = s.value), running) },
+            ) { vm.toggleChartSeries(s) }
         }
         Hairline()
         ToggleRow("Autarkie", formatPercent(t.autarky), EnergyColors.autarky, vm.showAutarky, emphasize = true) { vm.toggleAutarky() }
@@ -246,7 +256,10 @@ private fun StatsContent(vm: MainViewModel, r: StatsResult, onSettings: () -> Un
 
 /** Zeile der Energie-Kachel: gefüllter Punkt = im Diagramm sichtbar, Ring = ausgeblendet. */
 @Composable
-private fun ToggleRow(label: String, value: String, color: Color, selected: Boolean, emphasize: Boolean = false, onClick: () -> Unit) {
+private fun ToggleRow(
+    label: String, value: String, color: Color, selected: Boolean, emphasize: Boolean = false,
+    previous: String? = null, onClick: () -> Unit,
+) {
     val c = VoidTheme.colors
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 6.dp),
@@ -263,12 +276,24 @@ private fun ToggleRow(label: String, value: String, color: Color, selected: Bool
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            value,
-            color = c.text,
-            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Medium),
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                value,
+                color = c.text,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Medium),
+            )
+            previous?.let { Label(it) }
+        }
     }
+}
+
+/** „Vorjahr 3,40 MWh · −14 %“ (bei laufendem Zeitraum bis zum selben Zeitpunkt). */
+private fun compareText(current: Double, previous: Double, running: Boolean): String? {
+    if (previous <= 0.0) return null
+    val change = (current / previous - 1) * 100
+    val sign = if (change >= 0) "+" else "−"
+    return (if (running) "VJ bis jetzt " else "Vorjahr ") + formatKwh(previous) +
+        String.format(Locale.GERMANY, " · %s%.0f %%", sign, kotlin.math.abs(change))
 }
 
 /** Werte einer früheren Anlage (vor einem Speichertausch) per CSV einspielen. */
