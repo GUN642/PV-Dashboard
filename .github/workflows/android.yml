@@ -29,22 +29,43 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Optional: eigener Signaturschlüssel über Repository-Secrets (siehe README).
-      - name: Signaturschlüssel aus Secrets
+      # Signaturschlüssel nur aus Repository-Secrets (siehe README) – im Repository liegt keiner.
+      # Releases (main) brauchen ihn zwingend; Testbuilds anderer Branches nutzen einen Wegwerf-Schlüssel.
+      - name: Signaturschlüssel
         env:
           KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-            echo "Eigener Schlüssel wird verwendet."
+          KS="$RUNNER_TEMP/release.p12"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+            {
+              echo "SIGNING_KEYSTORE_FILE=$KS"
+              echo "SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
+              echo "SIGNING_KEY_ALIAS=$KEY_ALIAS"
+              echo "SIGNING_KEY_PASSWORD=${KEY_PASSWORD:-$STORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+            echo "Geheimer Signaturschlüssel aus den Secrets wird verwendet."
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "::error::Kein Signaturschlüssel: bitte die Secrets SIGNING_KEYSTORE_BASE64, SIGNING_STORE_PASSWORD und SIGNING_KEY_ALIAS anlegen (siehe README)."
+            exit 1
+          else
+            PW="$(openssl rand -hex 16)"
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 -alias test -keyalg RSA -keysize 2048 \
+              -validity 2 -storepass "$PW" -keypass "$PW" -dname "CN=Testbuild" -noprompt
+            echo "::add-mask::$PW"
+            {
+              echo "SIGNING_KEYSTORE_FILE=$KS"
+              echo "SIGNING_STORE_PASSWORD=$PW"
+              echo "SIGNING_KEY_ALIAS=test"
+              echo "SIGNING_KEY_PASSWORD=$PW"
+            } >> "$GITHUB_ENV"
+            echo "Testbuild: Wegwerf-Schlüssel (diese APK lässt sich nicht über die installierte App aktualisieren)."
           fi
 
       - name: Tests und APK bauen
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testReleaseUnitTest assembleRelease

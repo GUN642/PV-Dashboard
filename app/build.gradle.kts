@@ -22,19 +22,22 @@ android {
     }
 
     signingConfigs {
-        // Standard: der Schlüssel im Repo. Optional per GitHub-Secrets ersetzbar (siehe README).
-        create("release") {
-            storeFile = envOrNull("SIGNING_KEYSTORE_FILE")?.let { file(it) } ?: file("signing/pv-dashboard.jks")
-            storePassword = envOrNull("SIGNING_STORE_PASSWORD") ?: "pvdashboard"
-            keyAlias = envOrNull("SIGNING_KEY_ALIAS") ?: "pvdashboard"
-            keyPassword = envOrNull("SIGNING_KEY_PASSWORD") ?: "pvdashboard"
+        // Kein Schlüssel im Repository: signiert wird nur mit dem geheimen Schlüssel aus den GitHub-Secrets
+        // (der Workflow legt ihn als Datei ab und setzt die Umgebungsvariablen, siehe README).
+        envOrNull("SIGNING_KEYSTORE_FILE")?.let { path ->
+            create("release") {
+                storeFile = file(path)
+                storePassword = envOrNull("SIGNING_STORE_PASSWORD") ?: error("SIGNING_STORE_PASSWORD fehlt")
+                keyAlias = envOrNull("SIGNING_KEY_ALIAS") ?: error("SIGNING_KEY_ALIAS fehlt")
+                keyPassword = envOrNull("SIGNING_KEY_PASSWORD") ?: envOrNull("SIGNING_STORE_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

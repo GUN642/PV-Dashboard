@@ -52,7 +52,23 @@ Der Cloud-Zugriff nutzt dieselbe Schnittstelle wie die offizielle SENEC-App (nac
 
 ### Signaturschlüssel
 
-Damit Updates über die installierte Version passen, wird immer mit demselben Schlüssel signiert: standardmäßig `app/signing/pv-dashboard.jks` (Passwort `pvdashboard`). Da das Repository öffentlich ist, kann optional ein eigener Schlüssel über die Secrets `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS` und `SIGNING_KEY_PASSWORD` hinterlegt werden (danach einmal neu installieren).
+Releases werden mit einem geheimen Schlüssel signiert, der nur in den Repository-Secrets liegt (Settings → Secrets and variables → Actions):
+
+| Secret | Inhalt |
+| --- | --- |
+| `SIGNING_KEYSTORE_BASE64` | Keystore (PKCS12) als Base64 |
+| `SIGNING_STORE_PASSWORD` | Passwort des Keystores |
+| `SIGNING_KEY_ALIAS` | Alias des Schlüssels |
+| `SIGNING_KEY_PASSWORD` | optional, sonst wie das Keystore-Passwort |
+
+Ohne diese Secrets bricht der Release-Build ab; Testbuilds anderer Branches nutzen einen Wegwerf-Schlüssel. Updates passen nur über eine Version mit demselben Schlüssel – nach einem Schlüsselwechsel einmal deinstallieren und neu installieren (vorher Sicherungsdatei erstellen).
+
+Einen Schlüssel erzeugen (z. B. am PC mit Java):
+
+```
+keytool -genkeypair -keystore void.p12 -storetype PKCS12 -alias void -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=VOID Home Dashboard"
+base64 -w0 void.p12   # Ausgabe in SIGNING_KEYSTORE_BASE64
+```
 
 ## Lizenzen
 
