@@ -79,7 +79,7 @@ enum class Screen { MAIN, SETTINGS, RAW }
 
 sealed interface UiEvent {
     data class Message(val text: String) : UiEvent
-    data class Install(val apk: File) : UiEvent
+    data class OpenUrl(val url: String) : UiEvent
     data class Share(val file: File, val mimeType: String) : UiEvent
 }
 
@@ -1108,9 +1108,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var checkingUpdate by mutableStateOf(false)
         private set
     var showUpdateDialog by mutableStateOf(false)
-    var downloadProgress by mutableStateOf<Pair<Long, Long>?>(null)
-        private set
-    private var downloadJob: Job? = null
 
     fun checkForUpdates(manual: Boolean) {
         if (checkingUpdate) return
@@ -1136,30 +1133,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun downloadUpdate(release: Release) {
+    /** Öffnet den Download der neuen Version im Browser; installiert wird über die heruntergeladene Datei. */
+    fun openUpdate(release: Release) {
         showUpdateDialog = false
-        val url = release.apkUrl ?: return message("Für diese Version gibt es keine APK")
-        if (downloadJob?.isActive == true) return
-        val target = File(getApplication<Application>().cacheDir, "updates/VOID-Home-Dashboard-${release.version}.apk")
-        downloadJob = viewModelScope.launch {
-            downloadProgress = 0L to release.apkSize
-            try {
-                withContext(Dispatchers.IO) {
-                    Updater.download(url, target, { done, total -> downloadProgress = done to total }, { !isActive })
-                }
-                _events.tryEmit(UiEvent.Install(target))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                message("Download fehlgeschlagen: ${e.message}")
-            } finally {
-                downloadProgress = null
-            }
-        }
-    }
-
-    fun cancelDownload() {
-        downloadJob?.cancel()
+        val url = release.apkUrl ?: release.pageUrl.ifBlank { null } ?: return message("Für diese Version gibt es keine APK")
+        _events.tryEmit(UiEvent.OpenUrl(url))
     }
 
     fun message(text: String) {

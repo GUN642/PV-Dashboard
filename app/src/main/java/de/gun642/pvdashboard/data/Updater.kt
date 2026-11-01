@@ -1,8 +1,6 @@
 package de.gun642.pvdashboard.data
 
 import org.json.JSONArray
-import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -14,9 +12,14 @@ data class Release(
     val publishedAt: String,
     val apkUrl: String?,
     val apkSize: Long,
+    /** Release-Seite auf GitHub (Fallback, falls keine APK angehängt ist) */
+    val pageUrl: String = "",
 )
 
-/** Prüft die GitHub-Releases dieser App und lädt neue APKs herunter (wie in VOID Files). */
+/**
+ * Prüft die GitHub-Releases dieser App. Heruntergeladen und installiert wird über den Browser –
+ * die App selbst installiert nichts (keine Berechtigung „Apps installieren“).
+ */
 object Updater {
     private const val REPO = "GUN642/PV-Dashboard"
     private const val API = "https://api.github.com/repos/$REPO/releases?per_page=30"
@@ -75,6 +78,7 @@ object Updater {
                     publishedAt = r.optString("published_at"),
                     apkUrl = apkUrl,
                     apkSize = apkSize,
+                    pageUrl = r.optString("html_url"),
                 )
             }
             return out.sortedWith { x, y -> if (isNewer(x.version, y.version)) -1 else if (isNewer(y.version, x.version)) 1 else 0 }
@@ -89,33 +93,4 @@ object Updater {
                 it.startsWith("**Installation") || it.startsWith("Beim ersten Mal") || it.startsWith("Branch:")
         }
         .joinToString("\n").trim()
-
-    fun download(url: String, target: File, onProgress: (done: Long, total: Long) -> Unit, isCancelled: () -> Boolean) {
-        val conn = open(url)
-        conn.setRequestProperty("Accept", "application/octet-stream")
-        try {
-            if (conn.responseCode !in 200..299) throw IOException("Download fehlgeschlagen (${conn.responseCode})")
-            val total = conn.contentLengthLong
-            target.parentFile?.mkdirs()
-            conn.inputStream.use { input ->
-                FileOutputStream(target).use { out ->
-                    val buf = ByteArray(64 * 1024)
-                    var done = 0L
-                    while (true) {
-                        if (isCancelled()) throw IOException("Abgebrochen")
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        out.write(buf, 0, n)
-                        done += n
-                        onProgress(done, total)
-                    }
-                }
-            }
-        } catch (e: Throwable) {
-            target.delete()
-            throw e
-        } finally {
-            conn.disconnect()
-        }
-    }
 }

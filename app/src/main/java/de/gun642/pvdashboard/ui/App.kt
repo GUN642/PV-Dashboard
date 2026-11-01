@@ -49,7 +49,7 @@ import de.gun642.pvdashboard.ui.theme.VoidTheme
 import kotlinx.coroutines.launch
 
 @Composable
-fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit, onShare: (java.io.File, String) -> Unit) {
+fun App(vm: MainViewModel, onShare: (java.io.File, String) -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     PvTheme(settings.theme, settings.accent, settings.dotHeadings, settings.dotGrid) {
         val c = VoidTheme.colors
@@ -63,7 +63,9 @@ fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit, onShare: (java.io.
                         snackbar.currentSnackbarData?.dismiss()
                         launch { snackbar.showSnackbar(e.text) }
                     }
-                    is UiEvent.Install -> onInstall(e.apk)
+                    is UiEvent.OpenUrl -> runCatching {
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(e.url)))
+                    }.onFailure { snackbar.showSnackbar("Kein Browser gefunden") }
                     is UiEvent.Share -> onShare(e.file, e.mimeType)
                 }
             }
@@ -122,8 +124,8 @@ fun App(vm: MainViewModel, onInstall: (java.io.File) -> Unit, onShare: (java.io.
                 title = { Text("Update ${update.version}", color = c.text) },
                 text = { Text(update.notes.ifBlank { "Eine neue Version ist verfügbar." }, color = c.textMuted) },
                 confirmButton = {
-                    TextButton(onClick = { vm.downloadUpdate(update) }) {
-                        Text("INSTALLIEREN", style = MaterialTheme.typography.labelLarge, color = c.accent)
+                    TextButton(onClick = { vm.openUpdate(update) }) {
+                        Text("HERUNTERLADEN", style = MaterialTheme.typography.labelLarge, color = c.accent)
                     }
                 },
                 dismissButton = {

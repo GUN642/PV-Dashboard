@@ -6,7 +6,7 @@ Android-App für die private Auswertung einer **SENEC.Home V3 hybrid** mit Speic
 
 1. Auf dem Handy **[Releases → Latest](https://github.com/GUN642/PV-Dashboard/releases/latest)** öffnen und `VOID-Home-Dashboard-<Version>.apk` herunterladen.
 2. Datei öffnen und installieren (beim ersten Mal „Apps aus dieser Quelle installieren“ erlauben).
-3. Spätere Updates direkt in der App: **Einstellungen → Updates**.
+3. Spätere Updates: Die App meldet neue Versionen (**Einstellungen → Updates**); „herunterladen“ öffnet die APK im Browser, danach die Datei antippen und installieren. Die App selbst installiert nichts und braucht keine Berechtigung „Apps installieren“.
 
 ## Funktionen
 

@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         Notifier.ensureChannels(this)
         BackgroundChecks.apply(this, viewModel.settings.value)
         openTabFrom(intent)
-        setContent { App(viewModel, ::installApk, ::shareFile) }
+        setContent { App(viewModel, ::shareFile) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -65,19 +65,5 @@ class MainActivity : ComponentActivity() {
             .putExtra(Intent.EXTRA_SUBJECT, file.name)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         startActivity(Intent.createChooser(send, file.name))
-    }
-
-    private fun installApk(apk: File) {
-        if (!packageManager.canRequestPackageInstalls()) {
-            Toast.makeText(this, "Bitte \"Unbekannte Apps installieren\" für VOID Home Dashboard erlauben und dann erneut aktualisieren", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
-            return
-        }
-        val uri = FileProvider.getUriForFile(this, "$packageName.files", apk)
-        startActivity(
-            Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
     }
 }

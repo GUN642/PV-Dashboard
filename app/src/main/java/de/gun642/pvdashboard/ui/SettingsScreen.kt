@@ -415,21 +415,13 @@ private fun UpdateSection(vm: MainViewModel, s: AppSettings) {
         if (vm.checkingUpdate) CircularProgressIndicator(Modifier.size(22.dp), color = c.accent, strokeWidth = 2.dp)
     }
     Spacer(Modifier.height(12.dp))
-    val progress = vm.downloadProgress
-    if (progress != null) {
-        val (done, total) = progress
-        val f = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f
-        DotBar(f, Modifier.fillMaxWidth().height(10.dp), dots = 32)
-        Spacer(Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Label("${done / 1024 / 1024} / ${total / 1024 / 1024} MB", Modifier.weight(1f))
-            TextButton(onClick = { vm.cancelDownload() }) { Text("ABBRECHEN", style = MaterialTheme.typography.labelLarge, color = c.accent) }
-        }
-    } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (update != null) Pill("Auf ${update.version} aktualisieren", selected = true, onClick = { vm.downloadUpdate(update) })
-            Pill("Nach Updates suchen", selected = update == null, onClick = { vm.checkForUpdates(manual = true) })
-        }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (update != null) Pill("Version ${update.version} herunterladen", selected = true, onClick = { vm.openUpdate(update) })
+        Pill("Nach Updates suchen", selected = update == null, onClick = { vm.checkForUpdates(manual = true) })
+    }
+    if (update != null) {
+        Spacer(Modifier.height(6.dp))
+        Hint("Der Download startet im Browser. Danach die heruntergeladene Datei antippen und installieren – Einstellungen und Daten bleiben erhalten.")
     }
     Spacer(Modifier.height(8.dp))
     Toggle("Beim Start prüfen", "Beim Öffnen der App nach neuen Versionen suchen", s.autoUpdateCheck) { v ->
